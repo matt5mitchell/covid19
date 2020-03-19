@@ -15,7 +15,7 @@ incid_sum <- covid %>%
   slice(min(which(.$Incidence > 0)):nrow(.)) #First detection onward
 
 # Estimate Rt
-Rt <- est.R0.TD(incid_sum$Incidence, gt_lognormal, nsim = 100)
+Rt <- est.R0.TD(incid_sum$Incidence, gt_lognormal, nsim = 1000)
 
 #Plot 
 data.frame(incid_sum[-1,], #No Rt for first date
