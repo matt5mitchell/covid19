@@ -2,6 +2,7 @@
 library(readr)
 library(dplyr)
 library(tidyr)
+library(lubridate)
 
 # Daily reports from John Hopkins University
 confirmed_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
@@ -23,18 +24,38 @@ confirmed <- confirmed_raw %>%
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
   select(-`Country/Region`, -Lat, -Long) %>%
-  gather("Date", "Confirmed", -State)
+  gather("Date", "Confirmed", -State) %>%
+  mutate(Date = mdy(Date))
 
 recovered <- recovered_raw %>% 
   filter(`Country/Region` == "US",
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
   select(-`Country/Region`, -Lat, -Long) %>%
-  gather("Date", "Recovered", -State)
+  gather("Date", "Recovered", -State) %>%
+  mutate(Date = mdy(Date))
 
 deceased <- deceased_raw %>% 
   filter(`Country/Region` == "US",
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
   select(-`Country/Region`, -Lat, -Long) %>%
-  gather("Date", "Confirmed", -State)
+  gather("Date", "Deceased", -State) %>%
+  mutate(Date = mdy(Date))
+
+# Final dataset
+covid <- confirmed %>%
+  left_join(recovered, by = c("Date", "State")) %>%
+  left_join(deceased, by = c("Date", "State")) %>%
+  arrange(State, Date) %>%
+  group_by(State) %>%
+  mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+         Incidence = ifelse(Incidence < 0, 0, Incidence)) #Prevent negatives from bad data
+  
+covid_sir <- covid %>%
+  group_by(State) %>%
+  left_join(states[, c("State", "Population")], by = "State") %>%
+  mutate(Infected = Confirmed - Recovered - Deceased, 
+         Removed = Recovered + Deceased,
+         Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+  select(State, Susceptible, Infected, Removed)
