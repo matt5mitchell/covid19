@@ -24,7 +24,7 @@ confirmed <- confirmed_raw %>%
   filter(`Country/Region` == "US",
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
-  select(-`Country/Region`, -Lat, -Long) %>%
+  dplyr::select(-`Country/Region`, -Lat, -Long) %>%
   gather("Date", "Confirmed", -State) %>%
   mutate(Date = mdy(Date))
 
@@ -32,7 +32,7 @@ recovered <- recovered_raw %>%
   filter(`Country/Region` == "US",
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
-  select(-`Country/Region`, -Lat, -Long) %>%
+  dplyr::select(-`Country/Region`, -Lat, -Long) %>%
   gather("Date", "Recovered", -State) %>%
   mutate(Date = mdy(Date))
 
@@ -40,7 +40,7 @@ deceased <- deceased_raw %>%
   filter(`Country/Region` == "US",
          `Province/State` %in% states$State) %>%
   rename(State = `Province/State`) %>%
-  select(-`Country/Region`, -Lat, -Long) %>%
+  dplyr::select(-`Country/Region`, -Lat, -Long) %>%
   gather("Date", "Deceased", -State) %>%
   mutate(Date = mdy(Date))
 
@@ -59,4 +59,4 @@ covid_sir <- covid %>%
   mutate(Infected = Confirmed - Recovered - Deceased, 
          Removed = Recovered + Deceased,
          Susceptible = Population - Infected - Removed) %>% #For SIR modeling
-  select(State, Susceptible, Infected, Removed)
+  dplyr::select(State, Date, Susceptible, Infected, Removed)

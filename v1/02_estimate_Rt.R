@@ -17,8 +17,11 @@ incid_sum <- covid %>%
 # Estimate Rt
 Rt <- est.R0.TD(incid_sum$Incidence, gt_lognormal, nsim = 1000)
 
+# Average over last 7 days
+Rt_7days <- mean(Rt$R[(length(Rt$R)-6):length(Rt$R)])
+
 #Plot 
-data.frame(incid_sum[-1,], #No Rt for first date
+data.frame(incid_sum,
            Rt = Rt$R,
            Lower= Rt$conf.int$lower,
            Upper= Rt$conf.int$upper) %>%
