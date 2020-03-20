@@ -1,10 +1,5 @@
 ## Project epidemic curve
 
-library(deSolve)
-library(dplyr)
-library(ggplot2)
-library(scales)
-
 ## Inputs ##
 
 # Parameter inputs
@@ -62,8 +57,8 @@ plot_limit <- min(min(out.df$t[out.df$I < (max_val / 20) & out.df$t > max_val_t]
 colors <- c("#4b4b4b", "#F26F32", "#2585C7", "#96D05C")
 theme_set(theme_minimal() + 
             theme(panel.background = element_blank(),
-                  axis.title = element_text(color=colors[1], size=16),
-                  axis.text = element_text(color=colors[1], size = 12),
+                  axis.title = element_text(color=colors[1], size= 12),
+                  axis.text = element_text(color=colors[1], size = 10),
                   panel.grid.major = element_line(size=.5),
                   panel.grid.minor = element_line(size=.5),
                   panel.grid.major.x = element_blank(),
@@ -72,11 +67,11 @@ theme_set(theme_minimal() +
 
 out.df %>%
   ggplot(aes(x=time, y=I)) +
-  geom_line(size = 1.5, color = colors[3]) +
+  geom_line(size = 1.2, color = colors[3]) +
   scale_x_continuous(limits = c(0, plot_limit), breaks = seq(0, t %/% 30 * 30, by = 30)) +
   scale_y_continuous(labels = comma) +
-  geom_vline(xintercept = max_val_t, size = 1.5, linetype = "dashed", color = colors[1], alpha = 0.5) +
+  geom_vline(xintercept = max_val_t, size = 1.2, linetype = "dashed", color = colors[1], alpha = 0.5) +
   geom_text(aes(x=max_val_t, y=median(c(min_val, max_val)), label=paste0(comma(max_val)," infected on day ", max_val_t)),
-            size = 6, color = colors[1], angle = 90, vjust = -1) +
+            size = 4, color = colors[1], angle = 90, vjust = -1) +
   xlab("Days") +
   ylab("People Infected")
