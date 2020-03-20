@@ -48,13 +48,30 @@ out.df <- as.data.frame(out) %>%
          I = round(I * P, 0),
          R = round(R * P, 0))
 
-#Plot
-min_val <- min(out.df$I)
-max_val <- max(out.df$I)
-max_val_t <- min(out.df$time[out.df$I == max_val])
-plot_limit <- min(min(out.df$t[out.df$I < (max_val / 20) & out.df$t > max_val_t]), 365) #dynamic x axis
+## Combine historicals and projections ##
 
-colors <- c("#4b4b4b", "#F26F32", "#2585C7", "#96D05C")
+#Historicals
+covid_sir_sum <- covid_sir %>%
+  ungroup() %>%
+  group_by(Date) %>%
+  summarize_at(c("Susceptible", "Infected", "Removed"), sum) %>%
+  slice(min(which(.$Infected > 0)):nrow(.)) #First detection onward
+
+#Vector of all dates from covid_sir_sum plus out.df
+max_date <- max(covid_sir_sum$Date)
+out.df$Date <- max_date + days(out.df$time)
+
+#Combine datasets
+cases <- covid_sir_sum %>%
+  dplyr::select(Date, Infected) %>%
+  mutate(Type = "Cases")
+
+projection <- out.df %>%
+  dplyr::select(Date, I) %>%
+  rename(Infected = I) %>%
+  mutate(Type = "Projection") 
+
+#Plot
 theme_set(theme_minimal() + 
             theme(panel.background = element_blank(),
                   axis.title = element_text(color=colors[1], size= 12),
@@ -65,13 +82,22 @@ theme_set(theme_minimal() +
                   panel.grid.minor.x = element_blank()
             ))
 
-out.df %>%
-  ggplot(aes(x=time, y=I)) +
-  geom_line(size = 1.2, color = colors[3]) +
-  scale_x_continuous(limits = c(0, plot_limit), breaks = seq(0, t %/% 30 * 30, by = 30)) +
+min_val <- min(plot_data$Infected)
+max_val <- max(plot_data$Infected)
+max_val_t <- min(plot_data$Date[plot_data$Infected == max_val])
+x_min <- min(plot_data$Date)
+x_max <- min(min(plot_data$Date[plot_data$Infected < (max_val / 20) & plot_data$Date > max_val_t]), max(plot_data$Date)) #dynamic x axis
+
+
+plot_data %>%
+  ggplot(aes(x = Date, y = Infected, color = Type)) +
+  geom_line(size = 1.2) +
+  scale_x_date(limits = c(x_min, x_max)) +
   scale_y_continuous(labels = comma) +
-  geom_vline(xintercept = max_val_t, size = 1.2, linetype = "dashed", color = colors[1], alpha = 0.5) +
-  geom_text(aes(x=max_val_t, y=median(c(min_val, max_val)), label=paste0(comma(max_val)," infected on day ", max_val_t)),
-            size = 4, color = colors[1], angle = 90, vjust = -1) +
-  xlab("Days") +
-  ylab("People Infected")
+  geom_vline(xintercept = max_val_t, size = 1.2, linetype = "dashed", alpha = 0.5) +
+  geom_text(aes(x=max_val_t, y=median(c(min_val, max_val)), label=paste0(comma(max_val)," infected on ", max_val_t)),
+            size = 4, color = "gray40", angle = 90, vjust = -1) +
+  xlab("Date") +
+  ylab("Active Cases")
+
+
