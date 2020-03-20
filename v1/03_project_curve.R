@@ -71,7 +71,11 @@ projection <- out.df %>%
   rename(Infected = I) %>%
   mutate(Type = "Projection") 
 
+plot_data <- cases %>%
+  bind_rows(projection)
+
 #Plot
+colors <- c("#4b4b4b", "#F26F32", "#2585C7", "#96D05C")
 theme_set(theme_minimal() + 
             theme(panel.background = element_blank(),
                   axis.title = element_text(color=colors[1], size= 12),

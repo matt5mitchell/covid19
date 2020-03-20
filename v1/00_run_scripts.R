@@ -7,6 +7,7 @@ library(lubridate)
 library(R0)
 library(ggplot2)
 library(scales)
+library(deSolve)
 
 #Get data
 source("01_load_data.R")
