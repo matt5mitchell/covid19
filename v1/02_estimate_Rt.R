@@ -15,14 +15,14 @@ incid_sum <- covid %>%
   slice(min(which(.$Incidence > 0)):nrow(.)) #First detection onward
 
 # Estimate Rt
-Rt <- est.R0.TD(incid_sum$Incidence, gt_lognormal, nsim = 1000)
+Rt_est <- est.R0.TD(incid_sum$Incidence, gt_lognormal, nsim = 1000)
 
 # Average over last 7 days
-Rt_7days <- mean(Rt$R[(length(Rt$R)-6):length(Rt$R)])
+Rt_7days <- mean(Rt_est$R[(length(Rt_est$R)-6):length(Rt_est$R)])
 
 #Plot 
 data.frame(incid_sum,
-           Rt = Rt$R,
+           Rt = Rt_est$R,
            Lower= Rt$conf.int$lower,
            Upper= Rt$conf.int$upper) %>%
   ggplot(aes(x = Date)) +
