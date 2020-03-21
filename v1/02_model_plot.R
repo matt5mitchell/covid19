@@ -25,7 +25,9 @@ gt_lognormal <- generation.time("lognormal", c(4.7, 2.9))
 Rt_est <- est.R0.TD(covid_sum$Incidence, gt_lognormal, nsim = 1000)
 
 # Average over last 7 days
-Rt_7days <- mean(Rt_est$R[(length(Rt_est$R)-6):length(Rt_est$R)])
+Rt_7days <- data.frame(mean = mean(Rt_est$R[(length(Rt_est$R)-6):length(Rt_est$R)]),
+                       lower = mean(Rt_est$conf.int$lower[(length(Rt_est$conf.int$lower)-6):length(Rt_est$conf.int$lower)]),
+                       upper = mean(Rt_est$conf.int$upper[(length(Rt_est$conf.int$upper)-6):length(Rt_est$conf.int$upper)]))
 
 ## SIR model --------------------------------
 
@@ -33,38 +35,45 @@ Rt_7days <- mean(Rt_est$R[(length(Rt_est$R)-6):length(Rt_est$R)])
 covid_sir_input <- covid_sum %>%
   filter(Date == max(Date))
 
-# Parameter inputs
-t   <- 365 #max days to project
-Rt  <- Rt_7days #effective reproduction number
+# Static inputs
+t <- 365 #max days to project
 T_r <- 14 #recovery time (assumed to be 14 days)
 gamma <- 1 / T_r
-beta  <- gamma * Rt
 P <- covid_sir_input$Population
 S <- covid_sir_input$Susceptible / P
 I <- covid_sir_input$Infected / P
 R <- covid_sir_input$Removed / P
 init <- c(S=S, I=I, R=R)
-parameters <- c(bet=beta, gamm=gamma)
 times <- seq(0, t, by = 1)
 
-# Define model
-sir_model <- function(time, state, parameters) {
-  with(as.list(c(state, parameters)), {
-    dS <- -bet * S * I
-    dI <-  bet * S * I - gamm * I
-    dR <-                gamm * I
-    return(list(c(dS, dI, dR)))
-  })
+# Loop for mean, lower, and upper Rt estimates
+sir <- list()
+for (i in 1:3) {
+  # Additional inputs
+  Rt  <- Rt_7days[,i] #effective reproduction number
+  beta  <- gamma * Rt
+  parameters <- c(bet=beta, gamm=gamma)
+  
+  # Define model
+  sir_model <- function(time, state, parameters) {
+    with(as.list(c(state, parameters)), {
+      dS <- -bet * S * I
+      dI <-  bet * S * I - gamm * I
+      dR <-                gamm * I
+      return(list(c(dS, dI, dR)))
+    })
+  }
+  
+  #Solve using ode
+  sir[[i]] <- ode(y=init, times=times, sir_model, parms=parameters)
 }
 
-#Solve using ode
-sir <- ode(y=init, times=times, sir_model, parms=parameters)
+#Projection from SIR model
+sir_proj <- data.frame(Date = max(covid_sum$Date) + days(0:t),
+                       Mean = round(as.data.frame(sir[[1]])$I * P, 0),
+                       Lower = round(as.data.frame(sir[[2]])$I * P, 0),
+                       Upper = round(as.data.frame(sir[[3]])$I * P, 0))
 
-#Output
-sir_df <- as.data.frame(sir) %>%
-  mutate(S = round(S * P, 0),
-         I = round(I * P, 0),
-         R = round(R * P, 0))
 
 ## Plots --------------------------------
 
@@ -98,28 +107,23 @@ data.frame(covid_sum[1:n_days,],
 # Vector of all dates
 dates <- as_date(min(covid_sum$Date):(max(covid_sum$Date) + days(t)))
 
-# Add dates to SIR output
-sir_df <- sir_df %>%
-  mutate(Date = max(covid_sum$Date) + days(time))
-
 # Combine actuals and SIR output
 plot_data <- data.frame(Date=dates) %>%
   left_join(covid_sum, by="Date") %>%
-  left_join(sir_df, by="Date") %>%
-  rename(Cases = Infected,
-         Projection = I)
+  left_join(sir_proj, by="Date") %>%
+  slice(1:(nrow(covid_sum) + 14)) %>%
+  rename(Cases = Infected, #from covid_sum
+         Projection = Mean) #from sir_proj
 
 # SIR plot
 y_max <- max(plot_data$Projection, na.rm = TRUE)
-y_max_x <- min(plot_data$Date[plot_data$Projection == y_max])
-x_min <- min(plot_data$Date)
-x_max <- max(covid_sum$Date) + days(14)
+y_max_x <- min(plot_data$Date[plot_data$Projection == y_max], na.rm = TRUE)
 
 plot_data %>%
   ggplot(aes(x = Date)) +
+  geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = .2, fill = colors[3]) +
   geom_line(aes(y = Projection)) +
-  geom_bar(aes(y = Cases), stat = "identity") + 
-  scale_x_date(limits = c(x_min, x_max)) +
-  scale_y_continuous(limits = c(0, 200000), labels = comma) +
+  geom_bar(aes(y = Cases), stat = "identity", fill = colors[3]) + 
+  scale_y_continuous(limits = c(0, NA), labels = comma) +
   xlab("Date") +
   ylab("Active Cases")
