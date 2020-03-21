@@ -117,7 +117,7 @@ min_val <- min(plot_data$Infected)
 max_val <- max(plot_data$Infected)
 max_val_t <- min(plot_data$Date[plot_data$Infected == max_val])
 x_min <- min(plot_data$Date)
-x_max <- min(min(plot_data$Date[plot_data$Infected < (max_val / 20) & plot_data$Date > max_val_t]), max(plot_data$Date)) #dynamic x axis
+x_max <- max(covid_sum$Date) + days(14) #Two week projection
 
 plot_data %>%
   ggplot(aes(x = Date, y = Infected, color = Type)) +
