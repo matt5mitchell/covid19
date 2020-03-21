@@ -95,37 +95,31 @@ data.frame(covid_sum[1:n_days,],
 
 ## SIR model projection
 
-# Vector of all dates from covid_sum plus sir_df
-max_date <- max(covid_sum$Date)
-sir_df$Date <- max_date + days(sir_df$time)
+# Vector of all dates
+dates <- as_date(min(covid_sum$Date):(max(covid_sum$Date) + days(t)))
 
-# Combine datasets
-cases <- covid_sum %>%
-  dplyr::select(Date, Infected) %>%
-  mutate(Type = "Cases")
+# Add dates to SIR output
+sir_df <- sir_df %>%
+  mutate(Date = max(covid_sum$Date) + days(time))
 
-projection <- sir_df %>%
-  dplyr::select(Date, I) %>%
-  rename(Infected = I) %>%
-  mutate(Type = "Projection") 
-
-plot_data <- cases %>%
-  bind_rows(projection)
+# Combine actuals and SIR output
+plot_data <- data.frame(Date=dates) %>%
+  left_join(covid_sum, by="Date") %>%
+  left_join(sir_df, by="Date") %>%
+  rename(Cases = Infected,
+         Projection = I)
 
 # SIR plot
-min_val <- min(plot_data$Infected)
-max_val <- max(plot_data$Infected)
-max_val_t <- min(plot_data$Date[plot_data$Infected == max_val])
+y_max <- max(plot_data$Projection, na.rm = TRUE)
+y_max_x <- min(plot_data$Date[plot_data$Projection == y_max])
 x_min <- min(plot_data$Date)
-x_max <- max(covid_sum$Date) + days(14) #Two week projection
+x_max <- max(covid_sum$Date) + days(14)
 
 plot_data %>%
-  ggplot(aes(x = Date, y = Infected, color = Type)) +
-  geom_line() +
+  ggplot(aes(x = Date)) +
+  geom_line(aes(y = Projection)) +
+  geom_bar(aes(y = Cases), stat = "identity") + 
   scale_x_date(limits = c(x_min, x_max)) +
-  scale_y_continuous(labels = comma) +
-  geom_vline(xintercept = max_val_t, linetype = "dashed") +
-  geom_text(aes(x=max_val_t, y=median(c(min_val, max_val)), label=paste0(comma(max_val)," infected on ", max_val_t)),
-            size = 4, color = "gray40", angle = 90, vjust = -1) +
+  scale_y_continuous(limits = c(0, 200000), labels = comma) +
   xlab("Date") +
   ylab("Active Cases")
