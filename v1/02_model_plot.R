@@ -80,7 +80,7 @@ theme_set(theme_minimal() +
                   panel.grid.minor.x = element_blank()
             ))
 
-## Effective reprouction number
+## Plot effective reproduction number
 n_days <- length(Rt_est$R)
 
 data.frame(covid_sum[1:n_days,],
@@ -93,7 +93,7 @@ data.frame(covid_sum[1:n_days,],
   geom_hline(yintercept = 1, linetype ="dashed") +
   scale_y_continuous(limits = c(0, NA))
 
-## SIR model projection
+## Plot SIR model projection
 
 # Vector of all dates
 dates <- as_date(min(covid_sum$Date):(max(covid_sum$Date) + days(t)))
