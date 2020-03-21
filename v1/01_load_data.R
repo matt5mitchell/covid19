@@ -52,7 +52,7 @@ covid <- confirmed %>%
   arrange(State, Date) %>%
   group_by(State) %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
-         Incidence = ifelse(Incidence < 0, 0, Incidence)) %>% #Prevent negatives from bad data
-  mutate(Infected = Confirmed - Recovered - Deceased, 
+         Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+         Infected = Confirmed - Recovered - Deceased, 
          Removed = Recovered + Deceased,
          Susceptible = Population - Infected - Removed) #For SIR modeling
