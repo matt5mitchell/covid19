@@ -100,7 +100,8 @@ data.frame(covid_sum[1:n_days,],
   geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = .2, fill = colors[3]) +
   geom_line(aes(y=Rt_est$R)) +
   geom_hline(yintercept = 1, linetype ="dashed") +
-  scale_y_continuous(limits = c(0, NA))
+  scale_y_continuous(limits = c(0, NA)) +
+  ylab("Effective Reproduction Number")
 
 ## Plot SIR model projection
 
