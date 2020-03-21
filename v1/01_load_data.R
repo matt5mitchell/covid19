@@ -1,5 +1,10 @@
 ## Load data ##
 
+library(readr)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+
 # Daily reports from John Hopkins University
 confirmed_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
 recovered_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv"
@@ -43,15 +48,11 @@ deceased <- deceased_raw %>%
 covid <- confirmed %>%
   left_join(recovered, by = c("Date", "State")) %>%
   left_join(deceased, by = c("Date", "State")) %>%
+  left_join(states[, c("State", "Population")], by = "State") %>%
   arrange(State, Date) %>%
   group_by(State) %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
-         Incidence = ifelse(Incidence < 0, 0, Incidence)) #Prevent negatives from bad data
-  
-covid_sir <- covid %>%
-  group_by(State) %>%
-  left_join(states[, c("State", "Population")], by = "State") %>%
+         Incidence = ifelse(Incidence < 0, 0, Incidence)) %>% #Prevent negatives from bad data
   mutate(Infected = Confirmed - Recovered - Deceased, 
          Removed = Recovered + Deceased,
-         Susceptible = Population - Infected - Removed) %>% #For SIR modeling
-  dplyr::select(State, Date, Susceptible, Infected, Removed)
+         Susceptible = Population - Infected - Removed) #For SIR modeling
