@@ -15,16 +15,13 @@ fluidPage(
     # Sidebar panel ----
     sidebarPanel(
 
-      pickerInput(inputId = "input_states",
-                  label = "Select states to forecast",
-                  choices = list( "United States" = unique(covid$State)),
-                  selected = NULL,
-                  multiple = TRUE,
-                  options = pickerOptions(
-                    actionsBox = TRUE,
-                    noneSelectedText = "United States"
-                  )
-                  )
+      uiOutput("output_states"),
+      
+      sliderInput("input_days", 
+                  label = "Select length of forecast (days)", 
+                  min = 1,
+                  max = 90, 
+                  value = 14)
       
     ),
     
@@ -39,7 +36,9 @@ fluidPage(
       tableOutput("output_results_table"),
       br(),
       h3("Acknowledgements"),
-      "Acknowledgements here",
+      "Analysis and forecasts are based on data from ",
+      tags$a(href="https://github.com/CSSEGISandData/COVID-19", "Johns Hopkins University Center for Systems Science and Engineering."),
+      " Data are updated daily and are derived from WHO, CDC, and other government sources.",
       br(),
       h3("Limitations"),
       "Limitations here",

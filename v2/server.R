@@ -12,7 +12,7 @@ library(ggplot2)
 library(scales)
 library(deSolve)
 
-# Get data function ----
+# Get COVID-19 data function ----
 get_data <- function() {
 
   # Daily reports from John Hopkins University
@@ -72,7 +72,7 @@ get_data <- function() {
 # Shiny server function ----
 function(input, output, session) {
   
-  # Theme for plots
+  # Theme for plots ----
   colors <- c("#4b4b4b", "#F26F32", "#2585C7", "#96D05C")
   theme_set(theme_minimal() + 
               theme(panel.background = element_blank(),
@@ -84,14 +84,28 @@ function(input, output, session) {
                     panel.grid.minor.x = element_blank()
               ))
   
-  # Load data ----
+  # Load COVID-19 data ----
   covid <- reactive({
     # Prevent data from reloading
     invalidateLater(86400000, session) #approximately 24 hours
-    
-    # Get data (defined above)
+
+    # Get COVID-19 data (defined above)
     get_data()
     
+  })
+  
+  # UI Picker Output ----
+  output$output_states <- renderUI({
+    pickerInput(inputId = "input_states",
+                label = "Select states to forecast",
+                choices = list( "United States" = unique(covid()$State)),
+                selected = NULL,
+                multiple = TRUE,
+                options = pickerOptions(
+                  actionsBox = TRUE,
+                  noneSelectedText = "United States"
+                )
+    )
   })
   
   # Final data ----
@@ -217,11 +231,14 @@ function(input, output, session) {
     # Vector of all dates
     dates <- as_date(min(covid_sum()$Date):(max(covid_sum()$Date) + days(t)))
     
+    # Days of forecast to plot
+    forecast_days <- input$input_days
+    
     # Combine actuals and SIR output
     plot_data <- data.frame(Date=dates) %>%
       left_join(covid_sum(), by="Date") %>%
       left_join(sir_proj, by="Date") %>%
-      slice(1:(nrow(covid_sum()) + 14)) %>%
+      slice(1:(nrow(covid_sum()) + forecast_days)) %>%
       rename(Cases = Infected, #from covid_sum
              Projection = Mean) #from sir_proj
     
