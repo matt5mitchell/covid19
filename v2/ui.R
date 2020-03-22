@@ -2,6 +2,7 @@
 ## Shiny app ui script
 
 library(shiny)
+library(shinyWidgets)
 
 fluidPage(
   
