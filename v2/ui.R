@@ -13,11 +13,13 @@ fluidPage(
     
     # Sidebar panel ----
     sidebarPanel(
-      
-      selectInput(inputId = "input_state", 
-                  label = "Select states to forecast", 
-                  choices = unique(covid$State),
-                  multiple = TRUE
+
+      pickerInput(inputId = "input_states",
+                  label = "Select states to forecast",
+                  choices = list( "United States" = unique(covid$State)),
+                  selected = unique(covid$State),
+                  multiple = TRUE,
+                  options = list(`actions-box` = TRUE)
                   )
       
     ),

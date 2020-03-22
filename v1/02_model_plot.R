@@ -22,12 +22,18 @@ covid_sum <- covid %>%
 gt_lognormal <- generation.time("lognormal", c(4.7, 2.9))
 
 # Estimate Rt
-Rt_est <- est.R0.TD(covid_sum$Incidence, gt_lognormal, nsim = 1000)
+n_days <- nrow(covid_sum)
+
+Rt_est <- est.R0.TD(epid = covid_sum$Incidence, t = covid_sum$Date, gt_lognormal, begin = 1L, end = n_days, nsim = 1000)
+
+Rt_est_df <- data.frame(Rt = Rt_est$R,
+                        Lower= Rt_est$conf.int$lower,
+                        Upper= Rt_est$conf.int$upper)
 
 # Average over last 7 days
-Rt_7days <- data.frame(mean = mean(Rt_est$R[(length(Rt_est$R)-6):length(Rt_est$R)]),
-                       lower = mean(Rt_est$conf.int$lower[(length(Rt_est$conf.int$lower)-6):length(Rt_est$conf.int$lower)]),
-                       upper = mean(Rt_est$conf.int$upper[(length(Rt_est$conf.int$upper)-6):length(Rt_est$conf.int$upper)]))
+Rt_7days <- Rt_est_df %>%
+  slice((n() - 6):n()) %>%
+  summarize_all(mean)
 
 ## SIR model --------------------------------
 
@@ -90,15 +96,12 @@ theme_set(theme_minimal() +
             ))
 
 ## Plot effective reproduction number
-n_days <- length(Rt_est$R)
-
-data.frame(covid_sum[1:n_days,],
-           Rt = Rt_est$R,
-           Lower= Rt_est$conf.int$lower,
-           Upper= Rt_est$conf.int$upper) %>%
+covid_sum %>%
+  bind_cols(Rt_est_df) %>%
+  slice(1:(n_days - 1)) %>% #remove last day--sometimes returns 0
   ggplot(aes(x = Date)) +
   geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = .2, fill = colors[3]) +
-  geom_line(aes(y=Rt_est$R)) +
+  geom_line(aes(y=Rt)) +
   geom_hline(yintercept = 1, linetype ="dashed") +
   scale_y_continuous(limits = c(0, NA)) +
   ylab("Effective Reproduction Number")
