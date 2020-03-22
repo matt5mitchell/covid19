@@ -24,7 +24,14 @@ gt_lognormal <- generation.time("lognormal", c(4.7, 2.9))
 # Estimate Rt
 n_days <- nrow(covid_sum)
 
-Rt_est <- est.R0.TD(epid = covid_sum$Incidence, t = covid_sum$Date, gt_lognormal, begin = 1L, end = n_days, nsim = 1000)
+Rt_est <- est.R0.TD(epid = covid_sum$Incidence, 
+                    GT = gt_lognormal, 
+                    n.t0 = covid_sum$Incidence[1],
+                    t = covid_sum$Date, 
+                    begin = 1L, 
+                    end = n_days, 
+                    time.step = 1L, 
+                    nsim = 1000)
 
 Rt_est_df <- data.frame(Rt = Rt_est$R,
                         Lower= Rt_est$conf.int$lower,

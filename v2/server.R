@@ -82,15 +82,26 @@ function(input, output, session) {
     
   })
   
-  # Final data - filtered and summarized ----
+  # Final data ----
   covid_sum <- reactive({
-      covid() %>%
-        filter(State %in% input$input_state) %>%
-        group_by(Date) %>%
-        summarize_at(c("Incidence", "Population", "Susceptible", "Infected", "Removed"), sum) %>%
-        slice(min(which(.$Incidence > 0)):nrow(.)) #First detection onward
+    
+    #First detection
+    first_detection <- min(which(covid()$Incidence > 0))
+    
+    #States selected
+    states_selected <- if(is.null(input$input_states)) {
+      covid()$State
+    } else { as.vector(input$input_states) }
+    
+    #Filtered and summarized dataset
+    covid() %>%
+      dplyr::filter(State %in% states_selected) %>%
+      group_by(Date) %>%
+      summarize_at(c("Incidence", "Population", "Susceptible", "Infected", "Removed"), sum) %>%
+      slice(first_detection:n()) #First detection onward
+    
   })
-  
+
   # Rt plot ----
   output$output_Rt_plot <- renderPlot({
     
@@ -100,8 +111,15 @@ function(input, output, session) {
     
     # Estimate Rt
     n_days <- nrow(covid_sum())
-    
-    Rt_est <- est.R0.TD(epid = covid_sum()$Incidence, t = covid_sum()$Date, gt_lognormal, begin = 1L, end = n_days, nsim = 1000)
+
+    Rt_est <- est.R0.TD(epid = covid_sum()$Incidence, 
+                        GT = gt_lognormal, 
+                        n.t0 = covid_sum()$Incidence[1],
+                        t = covid_sum()$Date, 
+                        begin = 1L, 
+                        end = n_days, 
+                        time.step = 1L, 
+                        nsim = 1000)
     
     Rt_est_df <- data.frame(Rt = Rt_est$R,
                             Lower= Rt_est$conf.int$lower,

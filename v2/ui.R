@@ -18,9 +18,12 @@ fluidPage(
       pickerInput(inputId = "input_states",
                   label = "Select states to forecast",
                   choices = list( "United States" = unique(covid$State)),
-                  selected = unique(covid$State),
+                  selected = NULL,
                   multiple = TRUE,
-                  options = list(`actions-box` = TRUE)
+                  options = pickerOptions(
+                    actionsBox = TRUE,
+                    noneSelectedText = "United States"
+                  )
                   )
       
     ),
