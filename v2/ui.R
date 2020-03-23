@@ -55,12 +55,12 @@ fluidPage(theme = shinytheme("yeti"),
            a(href = "https://doi.org/10.1016/S1473-3099(20)30144-4", "https://doi.org/10.1016/S1473-3099(20)30144-4")),
         tags$li("The COVID-19 Hospital Impact Model for Epidemics from Penn Medicine Predictive Healthcare.", 
            a(href = "https://penn-chime.phl.io/", "https://penn-chime.phl.io/")),
+      ),
       p("Packages used in the analysis and visualization include:"),
       tags$ul(
         tags$li(a(href = "https://cran.r-project.org/package=R0", "R0: a toolbox to estimate reproduction numbers for epidemic outbreaks")),
         tags$li(a(href = "https://www.highcharts.com", "Highcharts: Javascript charting library")),
         tags$li(a(href = "http://jkunst.com/highcharter", "Highcharter: R package"))
-      )
       ),
       
       # Limitations ----
