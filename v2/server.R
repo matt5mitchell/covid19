@@ -97,7 +97,7 @@ function(input, output, session) {
   # UI Picker Output ----
   output$output_states <- renderUI({
     pickerInput(inputId = "input_states",
-                label = "Select states to forecast",
+                label = "States to forecast:",
                 choices = list( "United States" = unique(covid()$State)),
                 selected = NULL,
                 multiple = TRUE,
