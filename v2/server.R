@@ -9,8 +9,10 @@ library(tidyr)
 library(lubridate)
 library(R0)
 library(ggplot2)
+library(highcharter)
 library(scales)
 library(deSolve)
+library(highcharter)
 
 # Get COVID-19 data function ----
 get_data <- function() {
@@ -72,18 +74,9 @@ get_data <- function() {
 # Shiny server function ----
 function(input, output, session) {
   
-  # Theme for plots ----
+  # Colors for plots ----
   colors <- c("#4b4b4b", "#F26F32", "#2585C7", "#96D05C")
-  theme_set(theme_minimal() + 
-              theme(panel.background = element_blank(),
-                    axis.title = element_text(color=colors[1], size= 12),
-                    axis.text = element_text(color=colors[1], size = 10),
-                    panel.grid.major = element_line(size=.5),
-                    panel.grid.minor = element_line(size=.5),
-                    panel.grid.major.x = element_blank(),
-                    panel.grid.minor.x = element_blank()
-              ))
-  
+
   # Load COVID-19 data ----
   covid <- reactive({
     # Prevent data from reloading
@@ -165,31 +158,61 @@ function(input, output, session) {
   })
   
   # Rt plot ----
-  output$output_Rt_plot <- renderPlot({
+  output$output_Rt_plot <- renderHighchart({
     
-    # Plot effective reproduction number
-    covid_sum() %>%
+    plot_data <- covid_sum() %>%
       bind_cols(Rt_df()) %>%
-      slice(1:(n() - 1)) %>% #remove last day--sometimes returns 0
-      ggplot(aes(x = Date)) +
-      geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = .2, fill = colors[3]) +
-      geom_line(aes(y=Rt)) +
-      geom_hline(yintercept = 1, linetype ="dashed") +
-      scale_y_continuous(limits = c(0, NA)) +
-      ylab("Effective Reproduction Number")
+      mutate_all(function(x) {round(x, 2)}) %>%
+      mutate(Target = 1) %>%
+      slice(1:(n() - 1)) #remove last day--sometimes returns 0
+    
+    highchart() %>%
+      hc_xAxis(type = "datetime") %>%
+      hc_yAxis(min = 0,
+               title = list(text = "Effective Reproduction Number")) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Target),
+                    id = "Target",
+                    name = "Target Line",
+                    type = "line",
+                    marker = list(enabled = FALSE),
+                    color = colors[1],
+                    fillOpacity = 0.2,
+                    showInLegend = FALSE,
+                    dashStyle = "dash",
+                    animation = FALSE,
+                    enableMouseTracking = FALSE
+                    ) %>%
+      hc_add_series(plot_data, 
+                    hcaes(x = Date, low = Lower, high = Upper),     
+                    id = "Range", 
+                    name = "Confidence Interval",
+                    type = "arearange",
+                    marker = list(enabled = FALSE),
+                    color = colors[3],
+                    fillOpacity = 0.2,
+                    showInLegend = FALSE,
+                    animation = FALSE) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Rt),
+                    id = "Rt", 
+                    name = "Effective Reproduction Number", 
+                    type = "line",
+                    marker = list(enabled = FALSE),
+                    color = colors[1],
+                    showInLegend = FALSE,
+                    animation = FALSE)
     
   })
-  
-  # SIR Plot ----
-  output$output_SIR_plot <- renderPlot({
-    
-    ## SIR model ----
+
+  # SIR Model ----
+  sir_proj <- reactive({
     
     #Filter to last date for SIR model input
     covid_sir_input <- covid_sum() %>%
       filter(Date == max(Date))
     
-    # Static inputs
+    # Static inputs for model
     t <- 365 #max days to project
     T_r <- 14 #recovery time (assumed to be 14 days)
     gamma <- 1 / T_r
@@ -223,13 +246,18 @@ function(input, output, session) {
     }
     
     #Projection from SIR model
-    sir_proj <- data.frame(Date = max(covid_sum()$Date) + days(0:t),
-                           Mean = round(as.data.frame(sir[[1]])$I * P, 0),
-                           Lower = round(as.data.frame(sir[[2]])$I * P, 0),
-                           Upper = round(as.data.frame(sir[[3]])$I * P, 0))
+    data.frame(Date = max(covid_sum()$Date) + days(0:t),
+               Mean = round(as.data.frame(sir[[1]])$I * P, 0),
+               Lower = round(as.data.frame(sir[[2]])$I * P, 0),
+               Upper = round(as.data.frame(sir[[3]])$I * P, 0))
+    
+  })
+    
+  # SIR Plot ----
+  output$output_SIR_plot <- renderHighchart({
     
     # Vector of all dates
-    dates <- as_date(min(covid_sum()$Date):(max(covid_sum()$Date) + days(t)))
+    dates <- as_date(min(covid_sum()$Date):(max(covid_sum()$Date) + days(365)))
     
     # Days of forecast to plot
     forecast_days <- input$input_days
@@ -237,23 +265,55 @@ function(input, output, session) {
     # Combine actuals and SIR output
     plot_data <- data.frame(Date=dates) %>%
       left_join(covid_sum(), by="Date") %>%
-      left_join(sir_proj, by="Date") %>%
+      left_join(sir_proj(), by="Date") %>%
       slice(1:(nrow(covid_sum()) + forecast_days)) %>%
       rename(Cases = Infected, #from covid_sum
              Projection = Mean) #from sir_proj
     
     # SIR plot
-    y_max <- max(plot_data$Projection, na.rm = TRUE)
-    y_max_x <- min(plot_data$Date[plot_data$Projection == y_max], na.rm = TRUE)
-    
-    plot_data %>%
-      ggplot(aes(x = Date)) +
-      geom_ribbon(aes(ymin = Lower, ymax = Upper), alpha = .2, fill = colors[3]) +
-      geom_line(aes(y = Projection)) +
-      geom_bar(aes(y = Cases), stat = "identity", fill = colors[3]) + 
-      scale_y_continuous(limits = c(0, NA), labels = comma) +
-      xlab("Date") +
-      ylab("Active Cases")
+    highchart() %>%
+      hc_xAxis(type = "datetime") %>%
+      hc_yAxis(min = 0,
+               title = list(text = "Active Infections")) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Upper),
+                    id = "Higher",
+                    name = "Higher Estimate",
+                    type = "area",
+                    marker = list(enabled = FALSE),
+                    color = colors[2],
+                    fillOpacity = 0.2,
+                    showInLegend = FALSE,
+                    animation = FALSE) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Projection),
+                    id = "Projection",
+                    name = "Projection",
+                    type = "area",
+                    marker = list(enabled = FALSE),
+                    color = colors[3],
+                    fillOpacity = 0.2,
+                    showInLegend = FALSE,
+                    animation = FALSE) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Lower),
+                    id = "Lower",
+                    name = "Lower Estimate",
+                    type = "area",
+                    marker = list(enabled = FALSE),
+                    color = colors[4],
+                    fillOpacity = 0.2,
+                    showInLegend = FALSE,
+                    animation = FALSE) %>%
+      hc_add_series(plot_data,
+                    hcaes(x = Date, y = Cases),
+                    id = "Cases",
+                    name = "Active Infections",
+                    type = "column",
+                    groupPadding = 0,
+                    color = colors[1],
+                    showInLegend = FALSE,
+                    animation = FALSE)
     
   })
   
