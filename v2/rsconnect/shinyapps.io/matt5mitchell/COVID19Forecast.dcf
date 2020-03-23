@@ -1,0 +1,13 @@
+name: COVID19Forecast
+title: COVID19Forecast
+username:
+account: matt5mitchell
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1979315
+bundleId: 2910784
+url: https://matt5mitchell.shinyapps.io/COVID19Forecast/
+when: 1584927119.00502
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: 01_load_data.R
