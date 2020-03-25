@@ -101,3 +101,6 @@ data_cases_2 <- data_daily_reports %>%
 
 # Row bind datasets
 data_cases <- data_cases_1 %>% bind_rows(data_cases_2)
+
+# Save data
+write_csv(data_cases, path = "data_cases.csv")
