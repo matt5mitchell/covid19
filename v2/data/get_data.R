@@ -72,7 +72,12 @@ data_cases_1 <- confirmed %>%
 
 ## Dataset 2 3/23/2020 onward ----
 date_start <- ymd(20200322)
-date_end <- Sys.Date()
+
+if (hour(Sys.time()) < 18) { #If it's before 6pm, use yesterday's data
+  date_end <- Sys.Date() - days(1)
+} else {
+  date_end <- Sys.Date()
+}
 
 date_vector <- as_date(date_start:date_end)
 
