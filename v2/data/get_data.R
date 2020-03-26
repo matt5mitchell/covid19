@@ -20,8 +20,8 @@ cities <- read_csv(url(cities_url))
 
 ## Johns Hopkins data formatting changed
 
-## Dataset 1 1/22/2020 - 3/21/2020 ----
-date_start1 <- ymd(20200122)
+## Dataset 1 3/10/2020 - 3/21/2020 ----
+date_start1 <- ymd(20200310)
 date_end1 <- ymd(20200321)
 
 date_vector1 <- as_date(date_start1:date_end1)
