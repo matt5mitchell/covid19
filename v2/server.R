@@ -18,55 +18,14 @@ library(highcharter)
 get_data <- function() {
 
   # Daily reports from John Hopkins University
-  confirmed_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv"
-  recovered_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv"
-  deceased_url  <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Deaths.csv"
-  
-  # Population estimates 2019 (US Census Bureau)
-  states_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v1/states.csv"
+  cases_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/data_cases.csv" 
   
   # Read data
-  confirmed_raw <- read_csv(url(confirmed_url))
-  recovered_raw <- read_csv(url(recovered_url))
-  deceased_raw  <- read_csv(url(deceased_url))
-  states <- read_csv(url(states_url))
-  
-  # Prepare data
-  confirmed <- confirmed_raw %>% 
-    filter(`Country/Region` == "US",
-           `Province/State` %in% states$State) %>%
-    rename(State = `Province/State`) %>%
-    dplyr::select(-`Country/Region`, -Lat, -Long) %>%
-    gather("Date", "Confirmed", -State) %>%
-    mutate(Date = mdy(Date))
-  
-  recovered <- recovered_raw %>% 
-    filter(`Country/Region` == "US",
-           `Province/State` %in% states$State) %>%
-    rename(State = `Province/State`) %>%
-    dplyr::select(-`Country/Region`, -Lat, -Long) %>%
-    gather("Date", "Recovered", -State) %>%
-    mutate(Date = mdy(Date))
-  
-  deceased <- deceased_raw %>% 
-    filter(`Country/Region` == "US",
-           `Province/State` %in% states$State) %>%
-    rename(State = `Province/State`) %>%
-    dplyr::select(-`Country/Region`, -Lat, -Long) %>%
-    gather("Date", "Deceased", -State) %>%
-    mutate(Date = mdy(Date))
-  
-  # Final dataset
-  confirmed %>%
-    left_join(recovered, by = c("Date", "State")) %>%
-    left_join(deceased, by = c("Date", "State")) %>%
-    left_join(states[, c("State", "Population")], by = "State") %>%
-    arrange(State, Date) %>%
-    group_by(State) %>%
+  read_csv(url(cases_url)) %>%
     mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
            Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
-           Infected = Confirmed - Recovered - Deceased, 
-           Removed = Recovered + Deceased,
+           Infected = Confirmed - Recovered - Deaths, 
+           Removed = Recovered + Deaths,
            Susceptible = Population - Infected - Removed) #For SIR modeling
 
 }
@@ -87,11 +46,11 @@ function(input, output, session) {
     
   })
   
-  # UI Picker Output ----
+  # UI State Picker Output ----
   output$output_states <- renderUI({
     pickerInput(inputId = "input_states",
                 label = "States to forecast:",
-                choices = list( "United States" = unique(covid()$State)),
+                choices = list( "United States" = unique(sort(covid()$State))),
                 selected = NULL,
                 multiple = TRUE,
                 options = pickerOptions(
@@ -101,23 +60,49 @@ function(input, output, session) {
     )
   })
   
+  # States selected ----
+  states_selected <- reactive({
+    
+    states_selected <- if(is.null(input$input_states)) {
+      covid()$State
+      } else { as.vector(input$input_states) }
+    
+  })
+  
+  # UI County Picker Output ----
+  output$output_counties <- renderUI({
+    pickerInput(inputId = "input_counties",
+                label = "Counties to forecast:",
+                choices = unique(sort(covid()$County[covid()$State %in% states_selected()])),
+                selected = NULL,
+                multiple = TRUE,
+                options = pickerOptions(
+                  actionsBox = TRUE,
+                  noneSelectedText = "All Counties"
+                )
+    )
+  })
+  
+  # Counties selected ----
+  counties_selected <- reactive({
+
+    if(is.null(input$input_counties)) {
+      covid()$County
+      } else { as.vector(input$input_counties) }
+
+  })
+  
   # Final data ----
   covid_sum <- reactive({
     
-    #First detection
-    first_detection <- min(which(covid()$Incidence > 0))
-    
-    #States selected
-    states_selected <- if(is.null(input$input_states)) {
-      covid()$State
-    } else { as.vector(input$input_states) }
-    
     #Filtered and summarized dataset
     covid() %>%
-      dplyr::filter(State %in% states_selected) %>%
+      dplyr::filter(State %in% states_selected(),
+                    County %in% counties_selected()) %>%
+      #filter(if (!is.null(input$input_counties)) {Date >= ymd(20200322)} else {Date >= min(covid()$Date)}) %>%
       group_by(Date) %>%
       summarize_at(c("Incidence", "Population", "Susceptible", "Infected", "Removed"), sum) %>%
-      slice(first_detection:n()) #First detection onward
+      slice(min(which(.$Incidence > 0)):n()) #First detection
     
   })
   
@@ -252,7 +237,14 @@ function(input, output, session) {
                Upper = round(as.data.frame(sir[[3]])$I * P, 0))
     
   })
-    
+  
+  # Forecasted peak
+  output$output_peak <- renderText({
+    y_max <- max(sir_proj()$Mean)
+    y_max_date <- min(sir_proj()$Date[sir_proj()$Mean == y_max])
+    paste0("At the current rate of infection, the outbreak is forecasted to peak in ", format(y_max_date, "%B %Y"), " with ", prettyNum(round(y_max, -3), big.mark = ","), " active infections.")
+  })
+
   # SIR Plot ----
   output$output_SIR_plot <- renderHighchart({
     

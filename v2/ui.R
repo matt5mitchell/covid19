@@ -16,14 +16,16 @@ fluidPage(theme = shinytheme("yeti"),
     
     # Sidebar panel ----
     sidebarPanel(
-
-      uiOutput("output_states"),
       
       sliderInput("input_days", 
                   label = "Length of forecast (days):", 
                   min = 1,
                   max = 90, 
-                  value = 14)
+                  value = 7),
+
+      uiOutput("output_states"),
+      
+      uiOutput("output_counties")
       
     ),
     
@@ -41,6 +43,7 @@ fluidPage(theme = shinytheme("yeti"),
       h3("How fast will COVID-19 spread?"),
       p("The spread of an epidemic can be modeled by categorizing people as either ", em("Susceptible (S),"), " ", em("Infected (I),"), " or ", em("Removed (R)."), " The epidemic proceeds through a growth and decline process, which can be modeled using these three groups.  The ", em("SIR model"), " is a core model in epidemiology."),
       p("The forecast below is based on the latest surveillance data from government authorities and a rolling 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
+      textOutput("output_peak"),
       highchartOutput("output_SIR_plot"),
       br(),
       
@@ -65,7 +68,8 @@ fluidPage(theme = shinytheme("yeti"),
       
       # Limitations ----
       h3("Limitations"),
-      p("These analyses and forecasts of COVID-19 are best estimates based on the latest information, and they are dependent on data quality. Under-testing in some regions and under-reporting of results can skew forecasts. We use the latest data reported by government authorities, but all data are subject to change as better information becomes available.")
+      p("These analyses and forecasts of COVID-19 are best estimates based on the latest information, and they are dependent on data quality. Under-testing in some regions and under-reporting of results can skew forecasts. We use the latest data reported by government authorities, but all data are subject to change as better information becomes available."),
+      p("Data sources and quality are rapidly changing, and we are doing the best we can to keep up. Reliable county data became available 3/23/2020.")
     )
   ),
   
