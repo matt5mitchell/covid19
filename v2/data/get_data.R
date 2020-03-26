@@ -88,7 +88,11 @@ get_daily_report <- function(date) {
   date_char <- as.character(format(date, "%m-%d-%Y"))
   
   # URL for download
-  url_daily <- paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/",date_char,".csv")
+  if (lubridate::month(date) <= 9) {
+    url_daily <- paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/0",date_char,".csv")
+  } else {
+    url_daily <- paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_daily_reports/",date_char,".csv")
+  }
   
   # Read data and filter to US
   read_csv(url(url_daily)) %>% 
