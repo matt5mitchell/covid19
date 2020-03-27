@@ -161,6 +161,8 @@ function(input, output, session) {
       slice(1:(n() - 1)) #remove last day--sometimes returns 0
     
     highchart() %>%
+      hc_title(text = "Effective Reproduction Number: Lower is Better",
+               align = "left") %>%
       hc_xAxis(type = "datetime") %>%
       hc_yAxis(min = 0,
                title = list(text = "Effective Reproduction Number")) %>%
@@ -247,12 +249,14 @@ function(input, output, session) {
     
   })
   
-  # Forecasted peak
+  # Forecasted peak ----
   output$output_peak <- renderText({
+    
     y_max <- max(sir_proj()$Mean)
     y_max_date <- min(sir_proj()$Date[sir_proj()$Mean == y_max])
     paste0("At the current rate of infection, the outbreak is forecasted to peak in ", format(y_max_date, "%B %Y"), " with ", prettyNum(round(y_max, -3), big.mark = ","), " active infections.")
-  })
+  
+    })
 
   # SIR Plot ----
   output$output_SIR_plot <- renderHighchart({
@@ -273,9 +277,11 @@ function(input, output, session) {
     
     # SIR plot
     highchart() %>%
+      hc_title(text = "Active Infections",
+               align = "left") %>%
       hc_xAxis(type = "datetime") %>%
       hc_yAxis(min = 0,
-               title = list(text = "Active Infections")) %>%
+               title = list(text = "Active Infections Forecast")) %>%
       hc_add_series(plot_data,
                     hcaes(x = Date, y = Upper),
                     id = "Higher",

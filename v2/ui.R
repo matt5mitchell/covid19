@@ -41,9 +41,9 @@ fluidPage(theme = shinytheme("yeti"),
       
       # SIR model plot ----
       h3("How fast will COVID-19 spread?"),
+      p(textOutput("output_peak")),
+      p("The forecast below is based on the latest surveillance data from government authorities and the latest 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
       p("The spread of an epidemic can be modeled by categorizing people as either ", em("Susceptible (S),"), " ", em("Infected (I),"), " or ", em("Removed (R)."), " The epidemic proceeds through a growth and decline process, which can be modeled using these three groups.  The ", em("SIR model"), " is a core model in epidemiology."),
-      p("The forecast below is based on the latest surveillance data from government authorities and a rolling 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
-      textOutput("output_peak"),
       highchartOutput("output_SIR_plot"),
       br(),
       
