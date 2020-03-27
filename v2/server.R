@@ -12,7 +12,6 @@ library(ggplot2)
 library(highcharter)
 library(scales)
 library(deSolve)
-library(highcharter)
 
 # Get COVID-19 data function ----
 get_data <- function() {
@@ -21,13 +20,8 @@ get_data <- function() {
   cases_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/data_cases.csv" 
   
   # Read data
-  read_csv(url(cases_url)) %>%
-    mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
-           Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
-           Infected = Confirmed - Recovered - Deaths, 
-           Removed = Recovered + Deaths,
-           Susceptible = Population - Infected - Removed) #For SIR modeling
-
+  read_csv(url(cases_url))
+  
 }
 
 # Shiny server function ----
@@ -46,11 +40,21 @@ function(input, output, session) {
     
   })
   
+  # Unique states & counties ----
+  states_counties <- reactive({
+    
+    unique(covid() %>% 
+             dplyr::select(State, County) %>% 
+             na.omit() %>%
+             arrange(State, County))
+    
+  })
+  
   # UI State Picker Output ----
   output$output_states <- renderUI({
     pickerInput(inputId = "input_states",
                 label = "States to forecast:",
-                choices = list( "United States" = unique(sort(covid()$State))),
+                choices = list( "United States" = unique(states_counties()$State)),
                 selected = NULL,
                 multiple = TRUE,
                 options = pickerOptions(
@@ -63,7 +67,7 @@ function(input, output, session) {
   # States selected ----
   states_selected <- reactive({
     
-    states_selected <- if(is.null(input$input_states)) {
+    if(is.null(input$input_states)) {
       covid()$State
       } else { as.vector(input$input_states) }
     
@@ -73,7 +77,7 @@ function(input, output, session) {
   output$output_counties <- renderUI({
     pickerInput(inputId = "input_counties",
                 label = "Counties to forecast:",
-                choices = unique(sort(covid()$County[covid()$State %in% states_selected()])),
+                choices = states_counties()$County[states_counties()$State %in% states_selected()],
                 selected = NULL,
                 multiple = TRUE,
                 options = pickerOptions(
@@ -99,10 +103,15 @@ function(input, output, session) {
     covid() %>%
       dplyr::filter(State %in% states_selected(),
                     County %in% counties_selected()) %>%
-      #filter(if (!is.null(input$input_counties)) {Date >= ymd(20200322)} else {Date >= min(covid()$Date)}) %>%
+      dplyr::select(Date, Confirmed, Recovered, Deaths, Population) %>%
       group_by(Date) %>%
-      summarize_at(c("Incidence", "Population", "Susceptible", "Infected", "Removed"), sum) %>%
-      slice(min(which(.$Incidence > 0)):n()) #First detection
+      summarize_all(sum) %>%
+      mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+             Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+             Infected = Confirmed - Recovered - Deaths, 
+             Removed = Recovered + Deaths,
+             Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+      slice(min(which(.$Incidence > 0)):n())
     
   })
   
