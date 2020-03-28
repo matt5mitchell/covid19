@@ -8,9 +8,8 @@ library(dplyr)
 library(tidyr)
 library(lubridate)
 library(R0)
-library(ggplot2)
+library(imputeTS)
 library(highcharter)
-library(scales)
 library(deSolve)
 
 # Get COVID-19 data function ----
@@ -137,7 +136,9 @@ function(input, output, session) {
     
     data.frame(Rt = Rt_est$R,
                Lower= Rt_est$conf.int$lower,
-               Upper= Rt_est$conf.int$upper)
+               Upper= Rt_est$conf.int$upper) %>%
+      dplyr::na_if(0) %>%
+      imputeTS::na_interpolation(option = "spline")
     
   })
 
@@ -277,11 +278,11 @@ function(input, output, session) {
     
     # SIR plot
     highchart() %>%
-      hc_title(text = "Active Infections",
+      hc_title(text = "Forecast of Active Infections",
                align = "left") %>%
       hc_xAxis(type = "datetime") %>%
       hc_yAxis(min = 0,
-               title = list(text = "Active Infections Forecast")) %>%
+               title = list(text = "Active Infections")) %>%
       hc_add_series(plot_data,
                     hcaes(x = Date, y = Upper),
                     id = "Higher",
@@ -295,7 +296,7 @@ function(input, output, session) {
       hc_add_series(plot_data,
                     hcaes(x = Date, y = Projection),
                     id = "Projection",
-                    name = "Projection",
+                    name = "Projected Infections",
                     type = "area",
                     marker = list(enabled = FALSE),
                     color = colors[3],

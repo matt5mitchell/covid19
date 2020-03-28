@@ -20,8 +20,8 @@ fluidPage(theme = shinytheme("yeti"),
       sliderInput("input_days", 
                   label = "Length of forecast (days):", 
                   min = 1,
-                  max = 90, 
-                  value = 7),
+                  max = 180, 
+                  value = 30),
 
       uiOutput("output_states"),
       
@@ -41,10 +41,11 @@ fluidPage(theme = shinytheme("yeti"),
       
       # SIR model plot ----
       h3("How fast will COVID-19 spread?"),
-      p(textOutput("output_peak")),
+      strong(p(textOutput("output_peak"))),
       p("The forecast below is based on the latest surveillance data from government authorities and the latest 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
       p("The spread of an epidemic can be modeled by categorizing people as either ", em("Susceptible (S),"), " ", em("Infected (I),"), " or ", em("Removed (R)."), " The epidemic proceeds through a growth and decline process, which can be modeled using these three groups.  The ", em("SIR model"), " is a core model in epidemiology."),
       highchartOutput("output_SIR_plot"),
+      div("Note: the chart above displays active infections and excludes people who have recovered or died. These numbers are less than the cumulative total.", style = {"color:gray; font-style:italic"}),
       br(),
       
       # Acknowledgements ----
