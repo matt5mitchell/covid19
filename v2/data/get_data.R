@@ -7,6 +7,8 @@ library(tidyr)
 library(lubridate)
 library(purrr)
 
+setwd("~/R/covid19/v2/data")
+
 ## Population data ----
 
 # Population estimates (US Census Bureau) - 2019 for states, 2018  for counties/cities
