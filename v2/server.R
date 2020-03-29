@@ -10,6 +10,7 @@ library(lubridate)
 library(R0)
 library(imputeTS)
 library(highcharter)
+library(purrr)
 library(deSolve)
 
 #### Define functions ####
