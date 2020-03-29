@@ -13,7 +13,7 @@ library(highcharter)
 library(deSolve)
 
 # Get COVID-19 data function ----
-get_data <- function() {
+get_case_data <- function() {
 
   # Daily reports from John Hopkins University
   cases_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/data_cases.csv" 
@@ -21,6 +21,39 @@ get_data <- function() {
   # Read data
   read_csv(url(cases_url))
   
+}
+
+# Get state population data function ----
+get_state_data <- function() {
+  
+  # Population estimates (US Census Bureau) - 2019 for states
+  states_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/states.csv"
+  
+  # Read data
+  states <- read_csv(url(states_url))
+  
+}
+
+# Get county population data function ----
+get_county_data <- function() {
+  
+  # Population estimates (US Census Bureau) - 2018  for counties
+  counties_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/counties.csv"
+  
+  # Read data
+  counties <- read_csv(url(counties_url))
+  
+}
+
+# Estimate recoveries ----
+# Requires Active, Recovered, and Deaths columns
+t_recovery <- 10 #Assumption also used in SIR model
+estimate_recovered <- function(data) {
+  for (i in 2:nrow(data)) {
+    data$Recovered[i] <- round(data$Active[i-1] / t_recovery, 0)
+    data$Active[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
+  }
+  return(data)
 }
 
 # Shiny server function ----
@@ -35,7 +68,27 @@ function(input, output, session) {
     invalidateLater(86400000, session) #approximately 24 hours
 
     # Get COVID-19 data (defined above)
-    get_data()
+    get_case_data()
+    
+  })
+
+  # Load state population data ----
+  states <- reactive({
+    # Prevent data from reloading
+    invalidateLater(86400000, session) #approximately 24 hours
+    
+    # Get state data (defined above)
+    get_state_data()
+    
+  })
+  
+  # Load county population data ----
+  counties <- reactive({
+    # Prevent data from reloading
+    invalidateLater(86400000, session) #approximately 24 hours
+    
+    # Get county data (defined above)
+    get_county_data()
     
   })
   
@@ -67,11 +120,11 @@ function(input, output, session) {
   states_selected <- reactive({
     
     if(is.null(input$input_states)) {
-      covid()$State
+      unique(states_counties()$State)
       } else { as.vector(input$input_states) }
     
   })
-  
+
   # UI County Picker Output ----
   output$output_counties <- renderUI({
     pickerInput(inputId = "input_counties",
@@ -90,21 +143,40 @@ function(input, output, session) {
   counties_selected <- reactive({
 
     if(is.null(input$input_counties)) {
-      covid()$County
+      unique(covid()$County)
       } else { as.vector(input$input_counties) }
 
   })
   
-  # Final data ----
+  # Summarized data ----
   covid_sum <- reactive({
     
-    #Filtered and summarized dataset
-    covid() %>%
+    # Filtered and summarized dataset
+    covid_sum <- covid() %>%
       dplyr::filter(State %in% states_selected(),
                     County %in% counties_selected()) %>%
-      dplyr::select(Date, Confirmed, Recovered, Deaths, Population) %>%
+      dplyr::select(Date, Confirmed, Recovered, Deaths) %>%
       group_by(Date) %>%
-      summarize_all(sum) %>%
+      summarize(Confirmed = sum(Confirmed),
+                Recovered = 0, #data not reliable - estimate later
+                Deaths = sum(Deaths),
+                Active = Confirmed) #seed with confirmed - estimate later
+    
+    # Add population data
+    if(is.null(input$input_counties)) {
+      covid_sum %>% mutate(Population = sum(states()$Population[states()$State %in% states_selected()]))
+    } else {
+      covid_sum %>% mutate(Population = sum(counties()$Population[counties()$County %in% counties_selected()]))
+    }
+    
+  })
+
+  observe({print(min(covid_sum()$Date))})
+  
+  # Confirmed cases only ----
+  covid_sum_confirmed <- reactive({
+    
+    estimate_recovered(covid_sum())  %>%
       mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
              Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
              Infected = Confirmed - Recovered - Deaths, 
@@ -122,13 +194,13 @@ function(input, output, session) {
     gt_lognormal <- generation.time("lognormal", c(4.7, 2.9))
     
     # Number of days in dataset
-    n_days <- nrow(covid_sum())
+    n_days <- nrow(covid_sum_confirmed())
     
     # Estimate Rt
-    Rt_est <- est.R0.TD(epid = covid_sum()$Incidence, 
+    Rt_est <- est.R0.TD(epid = covid_sum_confirmed()$Incidence, 
                         GT = gt_lognormal, 
-                        n.t0 = covid_sum()$Incidence[1],
-                        t = covid_sum()$Date, 
+                        n.t0 = covid_sum_confirmed()$Incidence[1],
+                        t = covid_sum_confirmed()$Date, 
                         begin = 1L, 
                         end = n_days, 
                         time.step = 1L, 
@@ -155,7 +227,7 @@ function(input, output, session) {
   # Rt plot ----
   output$output_Rt_plot <- renderHighchart({
     
-    plot_data <- covid_sum() %>%
+    plot_data <- covid_sum_confirmed() %>%
       bind_cols(Rt_df()) %>%
       mutate_all(function(x) {round(x, 2)}) %>%
       mutate(Target = 1) %>%
@@ -202,6 +274,43 @@ function(input, output, session) {
     
   })
 
+  # 86% (CI: 82% - 90%) of cases go undetected
+  # Li, et al., 2020 https://doi.org/10.1126/science.abb3221
+  # For the forecasts, round to 80% and 90%
+  
+  covid_sum_est <- reactive ({
+    
+    # Approximate 80% undetected cases ----
+    covid_sum_80pct <- covid_sum()  %>%
+      mutate(Confirmed = Confirmed * 4,
+             Active = Confirmed) #seed with confirmed
+    
+    covid_sum_80pct <- estimate_recovered(covid_sum_80pct) %>%
+      mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+             Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+             Infected = Confirmed - Recovered - Deaths, 
+             Removed = Recovered + Deaths,
+             Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+      slice(min(which(.$Incidence > 0)):n())
+
+    # Approximate 90% undetected cases ----
+    covid_sum_90pct <- covid_sum()  %>%
+      mutate(Confirmed = Confirmed * 9,
+             Active = Confirmed) #seed with confirmed
+    
+    covid_sum_90pct <- estimate_recovered(covid_sum_90pct) %>%
+      mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+             Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+             Infected = Confirmed - Recovered - Deaths, 
+             Removed = Recovered + Deaths,
+             Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+      slice(min(which(.$Incidence > 0)):n())
+    
+    list(covid_sum_80pct, covid_sum_90pct)
+    
+  })
+  
+  
   # SIR Model ----
   sir_proj <- reactive({
     
