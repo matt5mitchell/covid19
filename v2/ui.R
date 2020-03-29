@@ -21,7 +21,7 @@ fluidPage(theme = shinytheme("yeti"),
                   label = "Length of forecast (days):", 
                   min = 1,
                   max = 180, 
-                  value = 30),
+                  value = 7),
 
       uiOutput("output_states"),
       
@@ -42,10 +42,11 @@ fluidPage(theme = shinytheme("yeti"),
       # SIR model plot ----
       h3("How fast will COVID-19 spread?"),
       strong(p(textOutput("output_peak"))),
-      p("The forecast below is based on the latest surveillance data from government authorities and the latest 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
-      p("The spread of an epidemic can be modeled by categorizing people as either ", em("Susceptible (S),"), " ", em("Infected (I),"), " or ", em("Removed (R)."), " The epidemic proceeds through a growth and decline process, which can be modeled using these three groups.  The ", em("SIR model"), " is a core model in epidemiology."),
+      p("Due to the testing shortage, the number of actual COVID-19 infections is far more than the number reported. Recent estimates suggested that upwards of 90% of cases go undetected. As a result, we base our forecast on two testing scenarios: one where 80% of cases are undetected and one where 90% of cases are undetected."),
       highchartOutput("output_SIR_plot"),
-      div("Note: the chart above displays active infections and excludes people who have recovered or died. These numbers are less than the cumulative total.", style = {"color:gray; font-style:italic"}),
+      p("The forecast above is based on surveillance data from government authorities and the latest 7-day average of the ", em("effective reproduction number"), " from the analysis above."),
+      p("The spread of an epidemic can be modeled by categorizing people as either ", em("Susceptible (S),"), " ", em("Infected (I),"), " or ", em("Removed (R)."), " The epidemic proceeds through a growth and decline process, which can be modeled using these three groups.  The ", em("SIR model"), " is a core model in epidemiology."),
+      div("Note: the forecast above estimates ", em("active infections"),  " and excludes people who have recovered or died. These numbers are less than the cumulative total.", style = {"color:gray; font-style:italic"}),
       br(),
       
       # Acknowledgements ----
@@ -69,7 +70,7 @@ fluidPage(theme = shinytheme("yeti"),
       
       # Limitations ----
       h3("Limitations"),
-      p("These analyses and forecasts of COVID-19 are best estimates based on the latest information, and they are dependent on data quality. Under-testing in some regions and under-reporting of results can skew forecasts. We use the latest data reported by government authorities, but all data are subject to change as better information becomes available."),
+      p("These analyses and forecasts of COVID-19 are best estimates based on the latest information, and they are dependent on data quality. Under-testing and incomplete reporting of results can skew forecasts. We use the latest data reported by government authorities and base our assumptions on available research, but all data are subject to change as better information becomes available."),
       p("Data sources and quality are rapidly changing, and we are doing the best we can to keep up. Reliable county data became available 3/23/2020.")
     )
   ),

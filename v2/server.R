@@ -12,6 +12,8 @@ library(imputeTS)
 library(highcharter)
 library(deSolve)
 
+#### Define functions ####
+
 # Get COVID-19 data function ----
 get_case_data <- function() {
 
@@ -46,8 +48,11 @@ get_county_data <- function() {
 }
 
 # Estimate recoveries ----
+# Prem, et al. 2020 https://doi.org/10.1016/S2468-2667(20)30073-6
+# Incubation 6.4 days + infectious 3-7 days -- about 11 on average
+t_recovery <- 11 #Assumption also used in SIR model
+
 # Requires Active, Recovered, and Deaths columns
-t_recovery <- 10 #Assumption also used in SIR model
 estimate_recovered <- function(data) {
   for (i in 2:nrow(data)) {
     data$Recovered[i] <- round(data$Active[i-1] / t_recovery, 0)
@@ -55,6 +60,47 @@ estimate_recovered <- function(data) {
   }
   return(data)
 }
+
+# SIR Model Function ----
+sir_model <- function(data) {
+  #Filter to last date for SIR model input
+  sir_input <- data %>%
+    filter(Date == max(Date))
+  
+  # Static inputs for model
+  t <- 365 #max days to project
+  gamma <- 1 / t_recovery #recovery time defined above
+  P <- sir_input$Population
+  S <- sir_input$Susceptible / P
+  I <- sir_input$Infected / P
+  R <- sir_input$Removed / P
+  init <- c(S=S, I=I, R=R)
+  times <- seq(0, t, by = 1)
+  
+  # Additional inputs
+  Rt  <- Rt_7days$Rt #effective reproduction number
+  beta  <- gamma * Rt
+  parameters <- c(bet=beta, gamm=gamma)
+  
+  # Define model
+  model <- function(time, state, parameters) {
+    with(as.list(c(state, parameters)), {
+      dS <- -bet * S * I
+      dI <-  bet * S * I - gamm * I
+      dR <-                gamm * I
+      return(list(c(dS, dI, dR)))
+    })
+  }
+  
+  #Solve using ode
+  model_output <- ode(y=init, times=times, model, parms=parameters)
+  
+  #Projection from SIR model
+  data.frame(Date = sir_input$Date + days(0:t),
+             Infected = round(as.data.frame(model_output)$I * P, 0))
+}
+
+#### Shiny App ####
 
 # Shiny server function ----
 function(input, output, session) {
@@ -170,8 +216,6 @@ function(input, output, session) {
     }
     
   })
-
-  observe({print(min(covid_sum()$Date))})
   
   # Confirmed cases only ----
   covid_sum_confirmed <- reactive({
@@ -314,76 +358,68 @@ function(input, output, session) {
   # SIR Model ----
   sir_proj <- reactive({
     
-    #Filter to last date for SIR model input
-    covid_sir_input <- covid_sum() %>%
-      filter(Date == max(Date))
+    # Run model using infection estimates
+    sir_model_outputs <- covid_sum_est() %>% map(sir_model)
     
-    # Static inputs for model
-    t <- 365 #max days to project
-    T_r <- 14 #recovery time (assumed to be 14 days)
-    gamma <- 1 / T_r
-    P <- covid_sir_input$Population
-    S <- covid_sir_input$Susceptible / P
-    I <- covid_sir_input$Infected / P
-    R <- covid_sir_input$Removed / P
-    init <- c(S=S, I=I, R=R)
-    times <- seq(0, t, by = 1)
-    
-    # Loop for mean, lower, and upper Rt estimates
-    sir <- list()
-    for (i in 1:3) {
-      # Additional inputs
-      Rt  <- as.data.frame(Rt_7days())[,i] #effective reproduction number
-      beta  <- gamma * Rt
-      parameters <- c(bet=beta, gamm=gamma)
-      
-      # Define model
-      sir_model <- function(time, state, parameters) {
-        with(as.list(c(state, parameters)), {
-          dS <- -bet * S * I
-          dI <-  bet * S * I - gamm * I
-          dR <-                gamm * I
-          return(list(c(dS, dI, dR)))
-        })
-      }
-      
-      #Solve using ode
-      sir[[i]] <- ode(y=init, times=times, sir_model, parms=parameters)
+    # Combine infection estimates with model projections
+    sir_data <- list() 
+    for (i in 1:2) {
+      sir_data[[i]] <- covid_sum_est()[[i]] %>%
+        dplyr::select(Date, Infected) %>%
+        bind_rows(sir_model_outputs[[i]]) %>%
+        unique() %>% #Remove duplicate date
+        arrange(Date)
     }
     
-    #Projection from SIR model
-    data.frame(Date = max(covid_sum()$Date) + days(0:t),
-               Mean = round(as.data.frame(sir[[1]])$I * P, 0),
-               Lower = round(as.data.frame(sir[[2]])$I * P, 0),
-               Upper = round(as.data.frame(sir[[3]])$I * P, 0))
+    # Convert to data frame
+    bind_cols(sir_data) %>%
+      rename(proj_80 = Infected,
+             proj_90 = Infected1) %>%
+      dplyr::select(Date, proj_80, proj_90)
     
   })
   
   # Forecasted peak ----
   output$output_peak <- renderText({
     
-    y_max <- max(sir_proj()$Mean)
-    y_max_date <- min(sir_proj()$Date[sir_proj()$Mean == y_max])
-    paste0("At the current rate of infection, the outbreak is forecasted to peak in ", format(y_max_date, "%B %Y"), " with ", prettyNum(round(y_max, -3), big.mark = ","), " active infections.")
-  
+    # Vectors of maxima and dates of maxima
+    y_max <- c(max(sir_proj()$proj_80), max(sir_proj()$proj_90))
+    y_max_date <- c(min(sir_proj()$Date[sir_proj()$proj_80 == y_max[1]]), min(sir_proj()$Date[sir_proj()$proj_90 == y_max[2]]))
+    
+    # Text out put
+    # If Month Year are the same ... else ...
+    if (identical(format(y_max_date[1], "%B %Y"), format(y_max_date[2], "%B %Y"))) {
+      paste0("At the current rate of infection, the outbreak is forecasted to peak in ", 
+             format(y_max_date[1], "%B %Y"), 
+             " with about ", 
+             prettyNum(round(max(y_max), -3), big.mark = ","), 
+             " active infections.")
+    } else {
+      paste0("At the current rate of infection, the outbreak is forecasted to peak between ", 
+             format(min(y_max_date), "%B %Y"), 
+             " and ",
+             format(max(y_max_date), "%B %Y"),
+             " with about ", 
+             prettyNum(round(max(y_max), -3), big.mark = ","), 
+             " active infections.")
+    }
+    
     })
 
   # SIR Plot ----
   output$output_SIR_plot <- renderHighchart({
     
     # Vector of all dates
-    dates <- as_date(min(covid_sum()$Date):(max(covid_sum()$Date) + days(365)))
+    dates <- sir_proj()$Date
     
     # Days of forecast to plot
     forecast_days <- input$input_days
     
     # Combine actuals and SIR output
     plot_data <- data.frame(Date=dates) %>%
-      left_join(covid_sum(), by="Date") %>%
+      left_join(covid_sum_confirmed(), by="Date") %>%
       left_join(sir_proj(), by="Date") %>%
-      slice(1:(nrow(covid_sum()) + forecast_days)) %>%
-      rename(Cases = Infected, #from covid_sum
-             Projection = Mean) #from sir_proj
+      slice(1:(nrow(covid_sum_confirmed()) + forecast_days))
     
     # SIR plot
     highchart() %>%
@@ -393,9 +429,8 @@ function(input, output, session) {
       hc_yAxis(min = 0,
                title = list(text = "Active Infections")) %>%
       hc_add_series(plot_data,
-                    hcaes(x = Date, y = Upper),
-                    id = "Higher",
-                    name = "Higher Estimate",
+                    hcaes(x = Date, y = proj_90),
+                    name = "90% Undetected",
                     type = "area",
                     marker = list(enabled = FALSE),
                     color = colors[2],
@@ -403,9 +438,8 @@ function(input, output, session) {
                     showInLegend = FALSE,
                     animation = FALSE) %>%
       hc_add_series(plot_data,
-                    hcaes(x = Date, y = Projection),
-                    id = "Projection",
-                    name = "Projected Infections",
+                    hcaes(x = Date, y = proj_80),
+                    name = "80% Undetected",
                     type = "area",
                     marker = list(enabled = FALSE),
                     color = colors[3],
@@ -413,19 +447,8 @@ function(input, output, session) {
                     showInLegend = FALSE,
                     animation = FALSE) %>%
       hc_add_series(plot_data,
-                    hcaes(x = Date, y = Lower),
-                    id = "Lower",
-                    name = "Lower Estimate",
-                    type = "area",
-                    marker = list(enabled = FALSE),
-                    color = colors[4],
-                    fillOpacity = 0.2,
-                    showInLegend = FALSE,
-                    animation = FALSE) %>%
-      hc_add_series(plot_data,
-                    hcaes(x = Date, y = Cases),
-                    id = "Cases",
-                    name = "Active Infections",
+                    hcaes(x = Date, y = Infected),
+                    name = "Confirmed Active Infections",
                     type = "column",
                     groupPadding = 0,
                     color = colors[1],
