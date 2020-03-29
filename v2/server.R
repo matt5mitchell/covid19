@@ -62,45 +62,6 @@ estimate_recovered <- function(data) {
   return(data)
 }
 
-# SIR Model Function ----
-sir_model <- function(data) {
-  #Filter to last date for SIR model input
-  sir_input <- data %>%
-    filter(Date == max(Date))
-  
-  # Static inputs for model
-  t <- 365 #max days to project
-  gamma <- 1 / t_recovery #recovery time defined above
-  P <- sir_input$Population
-  S <- sir_input$Susceptible / P
-  I <- sir_input$Infected / P
-  R <- sir_input$Removed / P
-  init <- c(S=S, I=I, R=R)
-  times <- seq(0, t, by = 1)
-  
-  # Additional inputs
-  Rt  <- Rt_7days$Rt #effective reproduction number
-  beta  <- gamma * Rt
-  parameters <- c(bet=beta, gamm=gamma)
-  
-  # Define model
-  model <- function(time, state, parameters) {
-    with(as.list(c(state, parameters)), {
-      dS <- -bet * S * I
-      dI <-  bet * S * I - gamm * I
-      dR <-                gamm * I
-      return(list(c(dS, dI, dR)))
-    })
-  }
-  
-  #Solve using ode
-  model_output <- ode(y=init, times=times, model, parms=parameters)
-  
-  #Projection from SIR model
-  data.frame(Date = sir_input$Date + days(0:t),
-             Infected = round(as.data.frame(model_output)$I * P, 0))
-}
-
 #### Shiny App ####
 
 # Shiny server function ----
@@ -358,6 +319,45 @@ function(input, output, session) {
   
   # SIR Model ----
   sir_proj <- reactive({
+    
+    # SIR Model Function
+    sir_model <- function(data) {
+      #Filter to last date for SIR model input
+      sir_input <- data %>%
+        filter(Date == max(Date))
+      
+      # Static inputs for model
+      t <- 365 #max days to project
+      gamma <- 1 / t_recovery #recovery time defined above
+      P <- sir_input$Population
+      S <- sir_input$Susceptible / P
+      I <- sir_input$Infected / P
+      R <- sir_input$Removed / P
+      init <- c(S=S, I=I, R=R)
+      times <- seq(0, t, by = 1)
+      
+      # Additional inputs
+      Rt  <- Rt_7days()$Rt #effective reproduction number
+      beta  <- gamma * Rt
+      parameters <- c(bet=beta, gamm=gamma)
+      
+      # Define model
+      model <- function(time, state, parameters) {
+        with(as.list(c(state, parameters)), {
+          dS <- -bet * S * I
+          dI <-  bet * S * I - gamm * I
+          dR <-                gamm * I
+          return(list(c(dS, dI, dR)))
+        })
+      }
+      
+      #Solve using ode
+      model_output <- ode(y=init, times=times, model, parms=parameters)
+      
+      #Projection from SIR model
+      data.frame(Date = sir_input$Date + days(0:t),
+                 Infected = round(as.data.frame(model_output)$I * P, 0))
+    }
     
     # Run model using infection estimates
     sir_model_outputs <- covid_sum_est() %>% map(sir_model)
