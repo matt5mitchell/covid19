@@ -226,8 +226,9 @@ function(input, output, session) {
   Rt_df <- reactive({
     
     # Generation time
+    # Updated mean and SD from: Du, et al, 2020, https://doi.org/10.3201/eid2606.200357
     # Mean and SD from: Nishiura, et al., 2020, https://doi.org/10.1016/j.ijid.2020.02.060
-    gt_lognormal <- generation.time("lognormal", c(4.7, 2.9))
+    gt_lognormal <- generation.time("gamma", c(3.96, 4.75)) # previous: c(4.7, 2.9))
     
     # Number of days in dataset
     n_days <- nrow(covid_sum_inc())
@@ -246,7 +247,11 @@ function(input, output, session) {
                Lower= Rt_est$conf.int$lower,
                Upper= Rt_est$conf.int$upper) %>%
       dplyr::na_if(0) %>%
-      imputeTS::na_interpolation(option = "spline")
+      imputeTS::na_interpolation(option = "spline") %>%
+      #Rolling 3 day averages to smooth data
+      mutate(Rt = (Rt + lag(Rt, 1) + lag(Rt, 2)) / 3,
+             Lower = (Lower + lag(Lower, 1) + lag(Lower, 2)) / 3,
+             Upper = (Upper + lag(Upper, 1) + lag(Upper, 2)) / 3)
     
   })
   
