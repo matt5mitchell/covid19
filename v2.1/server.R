@@ -260,6 +260,7 @@ function(input, output, session) {
     
     plot_data <- covid_sum_inc() %>%
       bind_cols(Rt_df()) %>%
+      filter(row_number() >= 3) %>% #remove rows 1-2 due to rolling avg
       mutate_all(function(x) {round(x, 2)}) %>%
       mutate(Target = 1) %>%
       slice(1:(n() - 1)) #remove last day--sometimes returns 0
