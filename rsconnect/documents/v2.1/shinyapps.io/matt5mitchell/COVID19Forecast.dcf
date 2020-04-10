@@ -5,8 +5,8 @@ account: matt5mitchell
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 1979315
-bundleId: 2995243
+bundleId: 2995322
 url: https://matt5mitchell.shinyapps.io/COVID19Forecast/
-when: 1586499777.9589
+when: 1586500541.93485
 asMultiple: FALSE
 asStatic: FALSE
