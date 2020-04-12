@@ -10,6 +10,8 @@ library(R0)
 library(imputeTS)
 library(purrr)
 library(deSolve)
+library(ggplot2)
+library(scales)
 
 # Get data functions ----
 get_case_data <- function() {
