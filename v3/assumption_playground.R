@@ -40,11 +40,11 @@ get_state_data <- function() {
 # Incubation 6.4 days + infectious 3-7 days -- about 11 on average
 t_recovery <- 11 #Assumption also used in SIR model
 
-# Requires Active, Recovered, and Deaths columns
+# Requires Infected, Recovered, and Deaths columns
 estimate_recovered <- function(data) {
   for (i in 2:nrow(data)) {
-    data$Recovered[i] <- round(data$Active[i-1] / t_recovery, 0)
-    data$Active[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
+    data$Recovered[i] <- round(data$Infected[i-1] / t_recovery, 0)
+    data$Infected[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
   }
   return(data)
 }
@@ -71,7 +71,7 @@ covid_sum <- covid %>%
   summarize(Confirmed = sum(Confirmed),
             Recovered = 0, #data not reliable - estimate later
             Deaths = sum(Deaths),
-            Active = Confirmed) %>% #seed with confirmed - estimate later
+            Infected = Confirmed) %>% #seed with confirmed - estimate later
   mutate(Population = sum(states$Population[states$State %in% states_selected]))
 
 covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
@@ -86,7 +86,7 @@ covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
 # Approximate 80% undetected cases
 covid_sum_80pct <- covid_sum  %>%
   mutate(Confirmed = Confirmed * 4,
-         Active = Confirmed) #seed with confirmed
+         Infected = Confirmed) #seed with confirmed
 
 covid_sum_80pct <- estimate_recovered(covid_sum_80pct) %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
@@ -99,7 +99,7 @@ covid_sum_80pct <- estimate_recovered(covid_sum_80pct) %>%
 # Approximate 90% undetected cases
 covid_sum_90pct <- covid_sum  %>%
   mutate(Confirmed = Confirmed * 9,
-         Active = Confirmed) #seed with confirmed
+         Infected = Confirmed) #seed with confirmed
 
 covid_sum_90pct <- estimate_recovered(covid_sum_90pct) %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),

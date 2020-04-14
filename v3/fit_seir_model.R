@@ -10,6 +10,7 @@
 # Use optimizer to fit cumulative deaths
 # Parameters to fit: beta1, beta2, mu, and possibly gamma
 
+## Functions ## ----
 
 # Approximate social distancing adoption ----
 # Use function in SEIR model to allow time-dependent increase in social distancing
@@ -25,14 +26,14 @@ sigmoid <- function(x, pct = 1, days = 1) {
 # Function inputs:
 # data - data frame with 5 columns: Population, Susceptible, Infected, Removed, Deaths
 # par - vector with 7 parameters: soc_dist_pct, soc_dist_days, beta1, beta2, nu, gamma, mu
-seir_model <- function(data, par) {
+seir_model <- function(data, par, t) {
   # Filter to first date for SEIR model input
   # Run model forward in time to attempt to match observations
   seir_input <- data %>%
     filter(Date == min(Date))
   
   # Create inputs
-  t <- 365 #max days to project
+  t <- t #days to project
   P <- seir_input$Population
   S <- seir_input$Susceptible / P
   S1 <- S #not social distancing
@@ -52,7 +53,7 @@ seir_model <- function(data, par) {
   
   # Final inputs for model
   init <- c(S1=S1, S2=S2, E=E, I=I, R=R, D=D) #initial state
-  times <- seq(0, t, by = 1) #time points to integrate
+  times <- seq(1, t, by = 1) #time points to integrate
   parameters <- list(pct=pct, days=days, beta1=beta1, beta2=beta2, nu=nu, gamma=gamma, mu=mu)
  
   # Define model
@@ -62,9 +63,12 @@ seir_model <- function(data, par) {
       soc_dist <- sigmoid(t, pct, days) #time-dependent increase in social distancing
       
       # Note: I + E assumes infectiousness during latent period
-      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
-      dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
-      dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
+      # dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
+      # dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
+      # dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
+      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (I))
+      dS2 <- -(beta2 * (S1 * soc_dist) * (I))
+      dE <- (beta1 * (S1 * (1 - soc_dist)) * (I)) + (beta2 * (S2 * soc_dist) * (I)) - (nu * E)
       dI <- (nu * E) - (gamma * I) - (mu * I)
       dR <- (gamma * I)
       dD <- (mu * I)
@@ -77,28 +81,44 @@ seir_model <- function(data, par) {
   model_output <- ode(y=init, times=times, model, parms=parameters)
   
   # Projection from seir model
-  seir_proj <- data.frame(Date = seir_input$Date + days(0:t)) %>%
+  seir_proj <- data.frame(Date = seir_input$Date + days(1:t)) %>%
     bind_cols(as.data.frame(model_output[,2:7]) * P)
   
 }
 
 
-# Test ----
 
-test_data <- data.frame(Date = lubridate::ymd(20200310),
-                        Population = 1000000,
-                        Susceptible = 1000000,
-                        Infected = 1,
-                        Removed = 0,
-                        Deaths = 0)
+# Fit SEIR to Deaths ----
+# Function to minimize sum of squared residuals
+seir_rss <- function(data, par) {
+  with(data, {
+    t <- nrow(data)
+    model_output <- seir_model(data, par, t)
+    # sum((model_output$D - Deaths) ^ 2)
+    sum((model_output$I - Infected) ^ 2) + sum((model_output$D - Deaths) ^ 2)
+  })
+}
 
-test_par <- c(.75, 20, .53, .07, .16, .16, .0005)
+# Optimize SEIR parameters ----
+opt <- optim(par = c(.6, 25, .5, .1, 1/6.4, 1/5, .005), 
+             fn = seir_rss, 
+             data = covid_sum_confirmed, 
+             method = "L-BFGS-B",
+             lower = c(0.3, 10, .1, .01, 1/7.7, 1/7, .0001),
+             upper = c(0.9, 50, 3, 1, 1/5.6, 1/3, .01))
 
-# Run model using infection estimates
-model_output <- seir_model(test_data, test_par)
+# Fit SEIR with optimized parameters ----
+model_output <- seir_model(covid_sum_confirmed, opt$par, 365)
 
 model_output %>%
   dplyr::select(-S1, -S2, -R) %>%
+  left_join(covid_sum_confirmed %>% dplyr::select(Date, Infected, Deaths), by = "Date") %>%
+  filter(Date <= Sys.Date()) %>%
   gather("var", "value", -Date) %>%
   ggplot(aes(x=Date, y=value, color=var)) +
   geom_line()
+
+print(c(pct = opt$par[1], days = opt$par[2], beta1 = opt$par[3], beta2 = opt$par[4], nu = opt$par[5], gamma = opt$par[6], mu = opt$par[7],
+        R0_1 = opt$par[3]/opt$par[6], R0_2 = opt$par[4]/opt$par[6],
+        R0 = (opt$par[3]/opt$par[6] * (1 - opt$par[1])) + opt$par[4]/opt$par[6] * opt$par[1]))
+
