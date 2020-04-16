@@ -1,16 +1,58 @@
 ## Fit SEIR model
 
 # Fit SEIR model to US data
+# Use optimizer to fit cumulative deaths + infected
 
-# Fixed population size, full population in S1 initially
-# Movement to S2 based on Gallup polling data
-# Use known nu (E to I), gamma (I to R), and mu (I to D) values
-# Use R0 values from est_R0_two_compartments.R and gamma to calculate beta values
+library(readr)
+library(dplyr)
+library(tibble)
+library(tidyr)
+library(lubridate)
+library(R0)
+library(imputeTS)
+library(purrr)
+library(deSolve)
+library(ggplot2)
+library(scales)
 
-# Use optimizer to fit cumulative deaths
-# Parameters to fit: beta1, beta2, mu, and possibly gamma
 
 ## Functions ## ----
+
+# Get data functions ----
+get_case_data <- function() {
+  
+  # Daily reports from John Hopkins University
+  cases_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/data_cases.csv" 
+  
+  # Read data
+  read_csv(url(cases_url))
+  
+}
+
+# Get state population data function ----
+get_state_data <- function() {
+  
+  # Population estimates (US Census Bureau) - 2019 for states
+  states_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/states.csv"
+  
+  # Read data
+  states <- read_csv(url(states_url))
+  
+}
+
+# Estimate recoveries ----
+# Prem, et al. 2020 https://doi.org/10.1016/S2468-2667(20)30073-6
+# Incubation 6.4 days + infectious 3-7 days -- about 11 on average
+t_recovery <- 11 #Assumption also used in SIR model
+
+# Requires Infected, Recovered, and Deaths columns
+estimate_recovered <- function(data) {
+  for (i in 2:nrow(data)) {
+    data$Recovered[i] <- round(data$Infected[i-1] / t_recovery, 0)
+    data$Infected[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
+  }
+  return(data)
+}
 
 # Approximate social distancing adoption ----
 # Use function in SEIR model to allow time-dependent increase in social distancing
@@ -18,7 +60,6 @@ sigmoid <- function(x, pct = 1, days = 1) {
   s <- 5 / days #approximate days to reaching pct
   2 / (1 + exp(-(x * s))) * pct - pct
 }
-
 
 # SEIR Model ----
 
@@ -86,9 +127,45 @@ seir_model <- function(data, par, t) {
   
 }
 
+## Get and transform data ## ----
+
+# Get data ----
+covid <- get_case_data()
+states <- get_state_data()
+
+# Select states ----
+states_selected <- states %>% 
+  # filter(State == "Oregon") %>%
+  # filter(State == "New York") %>%
+  # filter(State %in% c("Oregon", "Washington")) %>%
+  dplyr::select(State) %>%
+  deframe() %>%
+  unique()
+
+# Summarize data ----
+# Filtered and summarized dataset
+covid_sum <- covid %>%
+  dplyr::filter(State %in%  states_selected) %>%
+  dplyr::select(Date, Confirmed, Recovered, Deaths) %>%
+  group_by(Date) %>%
+  summarize(Confirmed = sum(Confirmed),
+            Recovered = 0, #data not reliable - estimate later
+            Deaths = sum(Deaths),
+            Infected = Confirmed) %>% #seed with confirmed - estimate later
+  mutate(Population = sum(states$Population[states$State %in% states_selected]))
+
+covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
+  mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+         Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+         Infected = Confirmed - Recovered - Deaths, 
+         Removed = Recovered + Deaths,
+         Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+  slice(min(which(.$Incidence > 0)):n())
 
 
-# Fit SEIR to Deaths ----
+## Results ## ----
+
+# Fit SEIR ----
 # Function to minimize sum of squared residuals
 seir_rss <- function(data, par) {
   with(data, {
@@ -113,7 +190,9 @@ model_output <- seir_model(covid_sum_confirmed, opt$par, 365)
 model_output %>%
   dplyr::select(-S1, -S2, -R) %>%
   left_join(covid_sum_confirmed %>% dplyr::select(Date, Infected, Deaths), by = "Date") %>%
-  filter(Date <= Sys.Date()) %>%
+  # dplyr::select(Date, D, Deaths) %>%
+  # filter(Date <= Sys.Date()) %>%
+  filter(Date <= lubridate::ymd(20200601)) %>%
   gather("var", "value", -Date) %>%
   ggplot(aes(x=Date, y=value, color=var)) +
   geom_line()
