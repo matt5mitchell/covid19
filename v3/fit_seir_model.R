@@ -3,13 +3,10 @@
 # Fit SEIR model to US data
 # Use optimizer to fit cumulative deaths + infected
 
-library(readr)
 library(dplyr)
 library(tibble)
 library(tidyr)
 library(lubridate)
-library(R0)
-library(imputeTS)
 library(purrr)
 library(deSolve)
 library(ggplot2)
@@ -17,42 +14,6 @@ library(scales)
 
 
 ## Functions ## ----
-
-# Get data functions ----
-get_case_data <- function() {
-  
-  # Daily reports from John Hopkins University
-  cases_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/data_cases.csv" 
-  
-  # Read data
-  read_csv(url(cases_url))
-  
-}
-
-# Get state population data function ----
-get_state_data <- function() {
-  
-  # Population estimates (US Census Bureau) - 2019 for states
-  states_url <- "https://raw.githubusercontent.com/matt5mitchell/covid19/master/v2/data/states.csv"
-  
-  # Read data
-  states <- read_csv(url(states_url))
-  
-}
-
-# Estimate recoveries ----
-# Prem, et al. 2020 https://doi.org/10.1016/S2468-2667(20)30073-6
-# Incubation 6.4 days + infectious 3-7 days -- about 11 on average
-t_recovery <- 11 #Assumption also used in SIR model
-
-# Requires Infected, Recovered, and Deaths columns
-estimate_recovered <- function(data) {
-  for (i in 2:nrow(data)) {
-    data$Recovered[i] <- round(data$Infected[i-1] / t_recovery, 0)
-    data$Infected[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
-  }
-  return(data)
-}
 
 # Approximate social distancing adoption ----
 # Use function in SEIR model to allow time-dependent increase in social distancing
@@ -104,12 +65,12 @@ seir_model <- function(data, par, t) {
       soc_dist <- sigmoid(t, pct, days) #time-dependent increase in social distancing
       
       # Note: I + E assumes infectiousness during latent period
-      # dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
-      # dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
-      # dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
-      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (I))
-      dS2 <- -(beta2 * (S1 * soc_dist) * (I))
-      dE <- (beta1 * (S1 * (1 - soc_dist)) * (I)) + (beta2 * (S2 * soc_dist) * (I)) - (nu * E)
+      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
+      dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
+      dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
+      # dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (I))
+      # dS2 <- -(beta2 * (S1 * soc_dist) * (I))
+      # dE <- (beta1 * (S1 * (1 - soc_dist)) * (I)) + (beta2 * (S2 * soc_dist) * (I)) - (nu * E)
       dI <- (nu * E) - (gamma * I) - (mu * I)
       dR <- (gamma * I)
       dD <- (mu * I)
@@ -127,11 +88,7 @@ seir_model <- function(data, par, t) {
   
 }
 
-## Get and transform data ## ----
-
-# Get data ----
-covid <- get_case_data()
-states <- get_state_data()
+## Transform data ## ----
 
 # Select states ----
 states_selected <- states %>% 
@@ -154,10 +111,23 @@ covid_sum <- covid %>%
             Infected = Confirmed) %>% #seed with confirmed - estimate later
   mutate(Population = sum(states$Population[states$State %in% states_selected]))
 
+# Estimate recovered and final transformation
 covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
          Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
          Infected = Confirmed - Recovered - Deaths, 
+         Removed = Recovered + Deaths,
+         Susceptible = Population - Infected - Removed) %>% #For SIR modeling
+  slice(min(which(.$Incidence > 0)):n())
+
+# Approximate undetected cases ----
+covid_sum_confirmed <- covid_sum  %>%
+  mutate(Confirmed = Confirmed * 4, # 4=80%, 9=90%
+         Infected = Confirmed) %>% #seed with confirmed
+  estimate_recovered() %>%
+  mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
+         Incidence = ifelse(Incidence < 0, 0, Incidence), #Prevent negatives from bad data
+         Infected = Confirmed - Recovered - Deaths,
          Removed = Recovered + Deaths,
          Susceptible = Population - Infected - Removed) %>% #For SIR modeling
   slice(min(which(.$Incidence > 0)):n())
@@ -181,7 +151,7 @@ opt <- optim(par = c(.6, 25, .5, .1, 1/6.4, 1/5, .005),
              fn = seir_rss, 
              data = covid_sum_confirmed, 
              method = "L-BFGS-B",
-             lower = c(0.3, 10, .1, .01, 1/7.7, 1/7, .0001),
+             lower = c(0.3, 10, .1, .01, 1/7.7, 1/7, .00001),
              upper = c(0.9, 50, 3, 1, 1/5.6, 1/3, .01))
 
 # Fit SEIR with optimized parameters ----
@@ -199,5 +169,6 @@ model_output %>%
 
 print(c(pct = opt$par[1], days = opt$par[2], beta1 = opt$par[3], beta2 = opt$par[4], nu = opt$par[5], gamma = opt$par[6], mu = opt$par[7],
         R0_1 = opt$par[3]/opt$par[6], R0_2 = opt$par[4]/opt$par[6],
-        R0 = (opt$par[3]/opt$par[6] * (1 - opt$par[1])) + opt$par[4]/opt$par[6] * opt$par[1]))
+        R0 = (opt$par[3]/opt$par[6] * (1 - opt$par[1])) + opt$par[4]/opt$par[6] * opt$par[1],
+        Deaths = max(model_output$D)))
 
