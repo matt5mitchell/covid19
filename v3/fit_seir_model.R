@@ -147,7 +147,7 @@ seir_rss <- function(data, par) {
 }
 
 # Optimize SEIR parameters ----
-opt <- optim(par = c(.6, 25, .5, .1, 1/6.4, 1/5, .005), 
+opt <- optim(par = c(.6, 25, .5, .1, 1/6.4, 1/5, .0005), 
              fn = seir_rss, 
              data = covid_sum_confirmed, 
              method = "L-BFGS-B",
