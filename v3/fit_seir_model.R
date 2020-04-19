@@ -122,7 +122,7 @@ covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
 
 # Approximate undetected cases ----
 covid_sum_confirmed <- covid_sum  %>%
-  mutate(Confirmed = Confirmed * 4, # 4=80%, 9=90%
+  mutate(Confirmed = Confirmed * 4, # 4=75%, 5=80%, 10=90%
          Infected = Confirmed) %>% #seed with confirmed
   estimate_recovered() %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
@@ -142,7 +142,7 @@ seir_rss <- function(data, par) {
     t <- nrow(data)
     model_output <- seir_model(data, par, t)
     # sum((model_output$D - Deaths) ^ 2)
-    sum((model_output$I - Infected) ^ 2) + sum((model_output$D - Deaths) ^ 2)
+    sum((model_output$I - Infected) ^ 2) + sum((10 * (model_output$D - Deaths)) ^ 2)
   })
 }
 
@@ -155,7 +155,7 @@ opt <- optim(par = c(.6, 25, .5, .1, 1/6.4, 1/5, .0005),
              upper = c(0.9, 50, 3, 1, 1/5.6, 1/3, .01))
 
 # Fit SEIR with optimized parameters ----
-model_output <- seir_model(covid_sum_confirmed, opt$par, 365)
+model_output <- seir_model(covid_sum_confirmed, opt$par, 180)
 
 model_output %>%
   dplyr::select(-S1, -S2, -R) %>%
