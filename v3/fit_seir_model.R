@@ -15,6 +15,20 @@ library(scales)
 
 ## Functions ## ----
 
+# Estimate recoveries ----
+# Prem, et al. 2020 https://doi.org/10.1016/S2468-2667(20)30073-6
+# Incubation 6.4 days + infectious 3-7 days -- about 11 on average
+t_recovery <- 11 #Assumption also used in SIR model
+
+# Requires Infected, Recovered, and Deaths columns
+estimate_recovered <- function(data) {
+  for (i in 2:nrow(data)) {
+    data$Recovered[i] <- round(data$Infected[i-1] / t_recovery, 0)
+    data$Infected[i] <- data$Confirmed[i] - data$Deaths[i] - data$Recovered[i]
+  }
+  return(data)
+}
+
 # Approximate social distancing adoption ----
 # Use function in SEIR model to allow time-dependent increase in social distancing
 sigmoid <- function(x, pct = 1, days = 1) {
@@ -122,7 +136,7 @@ covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
 
 # Approximate undetected cases ----
 covid_sum_confirmed <- covid_sum  %>%
-  mutate(Confirmed = Confirmed * 4, # 4=75%, 5=80%, 10=90%
+  mutate(Confirmed = Confirmed * 5, # 4=75%, 5=80%, 10=90%
          Infected = Confirmed) %>% #seed with confirmed
   estimate_recovered() %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
@@ -142,7 +156,7 @@ seir_rss <- function(data, par) {
     t <- nrow(data)
     model_output <- seir_model(data, par, t)
     # sum((model_output$D - Deaths) ^ 2)
-    sum((model_output$I - Infected) ^ 2) + sum((10 * (model_output$D - Deaths)) ^ 2)
+    sum((model_output$I - Infected) ^ 2) + sum((1 * (model_output$D - Deaths)) ^ 2)
   })
 }
 
