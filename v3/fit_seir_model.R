@@ -79,12 +79,12 @@ seir_model <- function(data, par, t) {
       soc_dist <- sigmoid(t, pct, days) #time-dependent increase in social distancing
       
       # Note: I + E assumes infectiousness during latent period
-      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
-      dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
-      dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
-      # dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (I))
-      # dS2 <- -(beta2 * (S1 * soc_dist) * (I))
-      # dE <- (beta1 * (S1 * (1 - soc_dist)) * (I)) + (beta2 * (S2 * soc_dist) * (I)) - (nu * E)
+      # dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (E + I))
+      # dS2 <- -(beta2 * (S1 * soc_dist) * (E + I))
+      # dE <- (beta1 * (S1 * (1 - soc_dist)) * (E + I)) + (beta2 * (S2 * soc_dist) * (E + I)) - (nu * E)
+      dS1 <- -(beta1 * (S1 * (1 - soc_dist)) * (I))
+      dS2 <- -(beta2 * (S1 * soc_dist) * (I))
+      dE <- (beta1 * (S1 * (1 - soc_dist)) * (I)) + (beta2 * (S2 * soc_dist) * (I)) - (nu * E)
       dI <- (nu * E) - (gamma * I) - (mu * I)
       dR <- (gamma * I)
       dD <- (mu * I)
@@ -136,7 +136,7 @@ covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
 
 # Approximate undetected cases ----
 covid_sum_confirmed <- covid_sum  %>%
-  mutate(Confirmed = Confirmed * 5, # 4=75%, 5=80%, 10=90%
+  mutate(Confirmed = Confirmed * 4, # 4=75%, 5=80%, 10=90%
          Infected = Confirmed) %>% #seed with confirmed
   estimate_recovered() %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
@@ -156,7 +156,7 @@ seir_rss <- function(data, par) {
     t <- nrow(data)
     model_output <- seir_model(data, par, t)
     # sum((model_output$D - Deaths) ^ 2)
-    sum((model_output$I - Infected) ^ 2) + sum((1 * (model_output$D - Deaths)) ^ 2)
+    sum((model_output$I - Infected) ^ 2) + sum((2 * (model_output$D - Deaths)) ^ 2)
   })
 }
 
