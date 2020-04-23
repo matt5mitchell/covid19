@@ -136,7 +136,7 @@ covid_sum_confirmed <- estimate_recovered(covid_sum)  %>%
 
 # Approximate undetected cases ----
 covid_sum_confirmed <- covid_sum  %>%
-  mutate(Confirmed = Confirmed * 4, # 4=75%, 5=80%, 10=90%
+  mutate(Confirmed = Confirmed * 5, # 4=75%, 5=80%, 10=90%
          Infected = Confirmed) %>% #seed with confirmed
   estimate_recovered() %>%
   mutate(Incidence = Confirmed - lag(Confirmed, n = 1L, default = 0),
