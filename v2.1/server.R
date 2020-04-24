@@ -249,9 +249,9 @@ function(input, output, session) {
       dplyr::na_if(0) %>%
       imputeTS::na_interpolation(option = "spline") %>%
       #Rolling 3 day averages to smooth data
-      mutate(Rt = (Rt + lag(Rt, 1) + lag(Rt, 2)) / 3,
-             Lower = (Lower + lag(Lower, 1) + lag(Lower, 2)) / 3,
-             Upper = (Upper + lag(Upper, 1) + lag(Upper, 2)) / 3)
+      mutate(Rt = (Rt + lag(Rt, 1) + lag(Rt, 2) + lag(Rt, 3) + lag(Rt, 4) + lag(Rt, 5) + lag(Rt, 6)) / 7,
+             Lower = (Lower + lag(Lower, 1) + lag(Lower, 2) + lag(Lower, 3) + lag(Lower, 4) + lag(Lower, 5) + lag(Lower, 6)) / 7,
+             Upper = (Upper + lag(Upper, 1) + lag(Upper, 2) + lag(Upper, 3) + lag(Upper, 4) + lag(Upper, 5) + lag(Upper, 6)) / 7)
     
   })
   
@@ -260,7 +260,7 @@ function(input, output, session) {
     
     plot_data <- covid_sum_inc() %>%
       bind_cols(Rt_df()) %>%
-      filter(row_number() >= 3) %>% #remove rows 1-2 due to rolling avg
+      filter(row_number() >= 7) %>% #remove rows 1-6 due to rolling avg
       mutate_all(function(x) {round(x, 2)}) %>%
       mutate(Target = 1) %>%
       slice(1:(n() - 1)) #remove last day--sometimes returns 0
