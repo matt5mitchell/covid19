@@ -156,7 +156,7 @@ seir_rss <- function(data, par) {
     t <- nrow(data)
     model_output <- seir_model(data, par, t)
     # sum((model_output$D - Deaths) ^ 2)
-    sum((model_output$I - Infected) ^ 2) + sum((2 * (model_output$D - Deaths)) ^ 2)
+    sum((model_output$I - Infected) ^ 2) + sum((10 * (model_output$D - Deaths)) ^ 2)
   })
 }
 
