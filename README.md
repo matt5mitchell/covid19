@@ -1,5 +1,9 @@
 # COVID-19 Forecasting Tool
-Analytical tool to forecast the spread of the COVID-19 outbreak in the US. 
-The tool gathers the latest data, estimates the effective reproductive rate, and uses that information to forecast the epidemic.
+To give myself a much-needed sense of control early in the COVID-19 pandemic, I created multiple analytical tools to forecast the spread of the COVID-19 outbreak in the US. 
+The tools gathered the latest data, estimated the effective reproductive rate, and used that information to forecast the epidemic using compartmental models.
 
-The shiny app can be found at [matt5mitchell.shinyapps.io/COVID19Forecast/](https://matt5mitchell.shinyapps.io/COVID19Forecast/).
+v1 - Simple SEIRD model
+v2 - Simple SEIRD model presented in an Rshiny app (with other data reporting features)
+v3 - SEEIRD model that estimated the effect of social distancing using an optimizer to fit historical data
+
+As the world settled into the long COVID-19 slog, these tools became less useful and were retired.
